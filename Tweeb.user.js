@@ -1415,7 +1415,7 @@ function xhook_do(request, response) {
       currentPage.includes("/with_replies")
     ) {
       var fragement = currentPage.split("/");
-      currentPage = `${fragement[fragement.length() - 1]}.json`;
+      currentPage = `${fragement[fragement.length - 1]}.json`;
     } else if (currentPage.includes("/search")) {
       var searchParam = currentURL.searchParams.get("q");
       currentPage = `${searchParam}.json`;
@@ -1434,8 +1434,10 @@ function xhook_do(request, response) {
   }
 
   function TweebWipeArchive() {
-    GM_setValue("tweetStorage", {});
-    alert("Wiped Tweet UserScript Tweet Store.");
+    if (confirm("Delete all your saved tweets? This is not reversible!")) {
+      GM_setValue("tweetStorage", {});
+      alert("Wiped Tweet UserScript Tweet Store.");
+    }
   }
 
   unsafeWindow.TweebDownload = TweebDownload;
