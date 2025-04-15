@@ -1148,7 +1148,8 @@ function flattenTweetDetail(entries) {
     if (
       (entry.entryId.startsWith("conversationthread-") &&
         !entry.entryId.includes("-tweet-")) ||
-      entry.entryId.startsWith("home-conversation-")
+      (entry.entryId.startsWith("home-conversation-") &&
+        !entry.entryId.includes("-tweet-"))
     ) {
       tweets.push(...flattenTweetDetail(entry.content.items));
     } else if (
