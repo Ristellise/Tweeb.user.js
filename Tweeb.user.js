@@ -904,23 +904,23 @@ function uLogTimelineError(timelineType, ...args) {
 }
 
 function yeetGrok(entry) {
-  var baseEntry = null;
+  let baseEntry = null;
   if (entry.item) {
     baseEntry = entry.item;
   } else if (entry.content) {
     baseEntry = entry.content;
+  } else if (entry.result) {
+    baseEntry = entry.result;
   }
   if (!baseEntry) {
     ulog("unable to ungrok", entry);
     return entry;
   }
-  if (baseEntry.itemContent.tweet_results.result.grok_analysis_button)
-    baseEntry.itemContent.tweet_results.result.grok_analysis_button = false;
-  else if (
+  if (
     baseEntry.itemContent.tweet_results.result &&
     baseEntry.itemContent.tweet_results.result.grok_analysis_button
   )
-    baseEntry.itemContent.tweet_results.result.tweet.grok_analysis_button = false;
+    baseEntry.itemContent.tweet_results.result.grok_analysis_button = false;
   else if (
     baseEntry.itemContent.tweet_results.result.tweet &&
     baseEntry.itemContent.tweet_results.result.tweet.grok_analysis_button
@@ -928,6 +928,28 @@ function yeetGrok(entry) {
     baseEntry.itemContent.tweet_results.result.tweet.grok_analysis_button = false;
   else {
     ulog("unable to ungrok", baseEntry);
+  }
+  if (
+    baseEntry.itemContent.tweet_results.result &&
+    baseEntry.itemContent.tweet_results.result.legacy &&
+    baseEntry.itemContent.tweet_results.result.legacy.retweeted_status_result
+  ) {
+    var retweetedResult = baseEntry.itemContent.tweet_results.result.legacy.retweeted_status_result;
+    if (retweetedResult.grok_analysis_button) {
+      retweetedResult.grok_analysis_button = false
+      baseEntry.itemContent.tweet_results.result.legacy.retweeted_status_result = retweetedResult;
+    }
+  } else if (
+    baseEntry.itemContent.tweet_results.result.tweet &&
+    baseEntry.itemContent.tweet_results.result.tweet.legacy &&
+    baseEntry.itemContent.tweet_results.result.tweet.legacy
+      .retweeted_status_result
+  ) {
+    var retweetedResult = baseEntry.itemContent.tweet_results.result.tweet.legacy.retweeted_status_result;
+    if (retweetedResult.grok_analysis_button) {
+      retweetedResult.grok_analysis_button = false
+      baseEntry.itemContent.tweet_results.result.tweet.legacy.retweeted_status_result = retweetedResult;
+    }
   }
   return entry;
 }
@@ -1091,12 +1113,10 @@ function getRealTweetObject(entryItem) {
       entryItem.entryId.startsWith("tweet-") ||
       entryItem.entryId.startsWith("profile-grid-")
     ) {
-      var baseentry = null
+      var baseentry = null;
       if (entryItem.item) {
-        baseentry = entryItem.item
-      }
-      else if (entryItem.content)
-        baseentry = entryItem.content
+        baseentry = entryItem.item;
+      } else if (entryItem.content) baseentry = entryItem.content;
       if (baseentry.itemContent.tweet_results.result.tweet)
         return baseentry.itemContent.tweet_results.result.tweet;
       return baseentry.itemContent.tweet_results.result;
@@ -1108,7 +1128,11 @@ function getRealTweetObject(entryItem) {
     entryItem.result &&
     entryItem.result.__typename.startsWith("Tweet")
   ) {
-    return entryItem.result.tweet;
+    if (entryItem.result.tweet) {
+      return entryItem.result.tweet;
+    } else if (entryItem.result) {
+      return entryItem.result;
+    }
   }
   return null;
 }
@@ -1145,31 +1169,46 @@ function solveTweet(tweetItem) {
   var userCore = { name: "?", display_name: "?", handle: "@", bio: "?" };
   // ulog(tweetObject);
   if (tweetObject.core.user_results) {
-    userCore = tweetObject.core.user_results.result.legacy;
+    userCore = tweetObject.core.user_results.result;
   }
   var tweetContent = tweetObject.legacy;
-  var simpleTweet = {
-    id: tweetContent.id_str,
-    text: tweetContent.full_text,
-    user: {
-      id: userCore.name,
-      display_name: userCore.name,
-      handle: userCore.screen_name,
-      bio: userCore.description,
-    },
-    media: [],
-    counts: {
-      reply: tweetContent.reply_count,
-      like: tweetContent.favorite_count,
-      retweet: tweetContent.retweet_count,
-      quote: tweetContent.quote_count,
-      bookmarked: tweetContent.bookmark_count,
-    },
-    reply: null,
-  };
+  var simpleTweet = {};
+  if (tweetContent.retweeted_status_result) {
+    simpleTweet = solveTweet(tweetContent.retweeted_status_result);
+    if (simpleTweet == null) {
+      ulog(tweetContent.retweeted_status_result);
+    }
+  } else {
+    simpleTweet = {
+      id: tweetContent.id_str,
+      text: tweetContent.full_text,
+      user: {
+        id: userCore.rest_id,
+        display_name: userCore.legacy.name,
+        handle: userCore.legacy.screen_name,
+        bio: userCore.legacy.description,
+      },
+      media: [],
+      counts: {
+        reply: tweetContent.reply_count,
+        like: tweetContent.favorite_count,
+        retweet: tweetContent.retweet_count,
+        quote: tweetContent.quote_count,
+        bookmarked: tweetContent.bookmark_count,
+      },
+      quote: null,
+      reply: null,
+    };
+  }
 
-  if (tweetObject.quoted_status_result) {
-    simpleTweet.reply = solveTweet(tweetObject.quoted_status_result);
+  if (tweetContent.quoted_status_result) {
+    // replies might be partial
+    simpleTweet.quote = solveTweet(tweetContent.quoted_status_result);
+  }
+
+  if (tweetContent.in_reply_to_status_id_str) {
+    // replies might be partial
+    simpleTweet.reply = tweetContent.in_reply_to_status_id_str;
   }
 
   // tweetContent.
@@ -1251,6 +1290,7 @@ function xhook_do(request, response) {
     request.url &&
     u.pathname.includes("/graphql/") &&
     (u.pathname.endsWith("HomeLatestTimeline") ||
+      u.pathname.endsWith("HomeTimeline") ||
       u.pathname.endsWith("UserTweets") ||
       u.pathname.endsWith("SearchTimeline") ||
       u.pathname.endsWith("UserMedia") ||
@@ -1382,13 +1422,15 @@ function xhook_do(request, response) {
   }
 
   function TweebDownloadArchive() {
-    saveData(GM_getValue("tweetStorage", {}), `TweetUserScriptArchive.json`);
+    saveData(
+      GM_getValue("tweetStorage", {}),
+      `TweetUserScriptArchive-${Math.floor(Date.now() / 1000)}.json`
+    );
   }
 
-  
   function TweebWipeArchive() {
-    GM_setValue("tweetStorage",{})
-    alert("Wiped Tweet UserScript Tweet Store.")
+    GM_setValue("tweetStorage", {});
+    alert("Wiped Tweet UserScript Tweet Store.");
   }
 
   unsafeWindow.TweebDownload = TweebDownload;
@@ -1482,12 +1524,12 @@ function xhook_do(request, response) {
     if (originalTimeline !== null) {
       document.querySelectorAll(
         'div[aria-label~="Timeline:" i] > div > div'
-      ).style="width:0%;";
+      ).style = "width:0%;";
       var timelineHeightPx =
         originalTimeline.parentElement.attributeStyleMap.get(
           "min-height"
         ).value;
-      unsafeWindow.scrollTo(0, timelineHeightPx+(10*1000));
+      unsafeWindow.scrollTo(0, timelineHeightPx + 10 * 1000);
       // originalTimeline.scrollIntoViewIfNeeded();
     } else {
       originalTimeline = document
