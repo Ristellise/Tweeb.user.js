@@ -23,4 +23,4 @@ Using the console is recommended. Here are some functions:
 
 ## License
 
-WTFPL.
+MIT
