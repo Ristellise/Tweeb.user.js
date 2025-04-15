@@ -934,10 +934,12 @@ function yeetGrok(entry) {
     baseEntry.itemContent.tweet_results.result.legacy &&
     baseEntry.itemContent.tweet_results.result.legacy.retweeted_status_result
   ) {
-    var retweetedResult = baseEntry.itemContent.tweet_results.result.legacy.retweeted_status_result;
+    var retweetedResult =
+      baseEntry.itemContent.tweet_results.result.legacy.retweeted_status_result;
     if (retweetedResult.grok_analysis_button) {
-      retweetedResult.grok_analysis_button = false
-      baseEntry.itemContent.tweet_results.result.legacy.retweeted_status_result = retweetedResult;
+      retweetedResult.grok_analysis_button = false;
+      baseEntry.itemContent.tweet_results.result.legacy.retweeted_status_result =
+        retweetedResult;
     }
   } else if (
     baseEntry.itemContent.tweet_results.result.tweet &&
@@ -945,10 +947,13 @@ function yeetGrok(entry) {
     baseEntry.itemContent.tweet_results.result.tweet.legacy
       .retweeted_status_result
   ) {
-    var retweetedResult = baseEntry.itemContent.tweet_results.result.tweet.legacy.retweeted_status_result;
+    var retweetedResult =
+      baseEntry.itemContent.tweet_results.result.tweet.legacy
+        .retweeted_status_result;
     if (retweetedResult.grok_analysis_button) {
-      retweetedResult.grok_analysis_button = false
-      baseEntry.itemContent.tweet_results.result.tweet.legacy.retweeted_status_result = retweetedResult;
+      retweetedResult.grok_analysis_button = false;
+      baseEntry.itemContent.tweet_results.result.tweet.legacy.retweeted_status_result =
+        retweetedResult;
     }
   }
   return entry;
@@ -1438,7 +1443,7 @@ function xhook_do(request, response) {
   unsafeWindow.TweebWipeArchive = TweebWipeArchive;
 
   // [Util] New Twitter: Download button
-  const downloadHref = `<a href="#none" onclick="window.TweebDownload()" aria-label="Download Media" role="link"
+  const downloadHref = `<a href="#none" id="tweebDL" aria-label="Download Media" role="link"
         class="css-175oi2r r-6koalj r-eqz5dr r-16y2uox r-1habvwh r-cnw61z r-13qz1uu r-1ny4l3l r-1loqt21">
         <div class="css-175oi2r r-sdzlij r-dnmrzs r-1awozwy r-18u37iz r-1777fci r-xyw6el r-o7ynqc r-6416eg" style="padding:5px;">
             <div dir="ltr"
@@ -1447,7 +1452,7 @@ function xhook_do(request, response) {
                     class="css-1jxf684 r-bcqeeo r-1ttztb7 r-qvutc0 r-poiln3" style="text-overflow: unset;">[DL Tweets] Session</span>
             </div>
         </div>
-    </a><a href="#none" onclick="window.TweebArchive()" aria-label="Download Media" role="link"
+    </a><a href="#none" id="tweebArchive" aria-label="Download Media" role="link"
         class="css-175oi2r r-6koalj r-eqz5dr r-16y2uox r-1habvwh r-cnw61z r-13qz1uu r-1ny4l3l r-1loqt21">
         <div class="css-175oi2r r-sdzlij r-dnmrzs r-1awozwy r-18u37iz r-1777fci r-xyw6el r-o7ynqc r-6416eg" style="padding:5px;">
             <div dir="ltr"
@@ -1456,7 +1461,7 @@ function xhook_do(request, response) {
                     class="css-1jxf684 r-bcqeeo r-1ttztb7 r-qvutc0 r-poiln3" style="text-overflow: unset;">[DL Tweets] Archive</span>
             </div>
         </div>
-    </a><a href="#none" onclick="window.TweebWipeArchive()" aria-label="Download Media" role="link"
+    </a><a href="#none" id="tweebWipe" aria-label="Download Media" role="link"
         class="css-175oi2r r-6koalj r-eqz5dr r-16y2uox r-1habvwh r-cnw61z r-13qz1uu r-1ny4l3l r-1loqt21">
         <div class="css-175oi2r r-sdzlij r-dnmrzs r-1awozwy r-18u37iz r-1777fci r-xyw6el r-o7ynqc r-6416eg" style="padding:5px;">
             <div dir="ltr"
@@ -1465,7 +1470,7 @@ function xhook_do(request, response) {
                     class="css-1jxf684 r-bcqeeo r-1ttztb7 r-qvutc0 r-poiln3" style="text-overflow: unset;">Wipe Script Archive</span>
             </div>
         </div>
-    </a><a href="#none" onclick="window.TweebScroll()" aria-label="Toggle AutoScroll" role="link"
+    </a><a href="#none" id="tweebScroll" aria-label="Toggle AutoScroll" role="link"
         class="css-175oi2r r-6koalj r-eqz5dr r-16y2uox r-1habvwh r-cnw61z r-13qz1uu r-1ny4l3l r-1loqt21">
         <div class="css-175oi2r r-sdzlij r-dnmrzs r-1awozwy r-18u37iz r-1777fci r-xyw6el r-o7ynqc r-6416eg" style="padding:5px;">
             <div dir="ltr"
@@ -1474,7 +1479,7 @@ function xhook_do(request, response) {
                     class="css-1jxf684 r-bcqeeo r-1ttztb7 r-qvutc0 r-poiln3" style="text-overflow: unset;">Toggle AutoScroll</span>
             </div>
         </div>
-    </a><a href="#none" onclick="window.TweebScrollWRef()" aria-label="Toggle AutoScroll With Reference" role="link"
+    </a><a href="#none" id="tweebScrollRef" aria-label="Toggle AutoScroll With Reference" role="link"
         class="css-175oi2r r-6koalj r-eqz5dr r-16y2uox r-1habvwh r-cnw61z r-13qz1uu r-1ny4l3l r-1loqt21">
         <div class="css-175oi2r r-sdzlij r-dnmrzs r-1awozwy r-18u37iz r-1777fci r-xyw6el r-o7ynqc r-6416eg" style="padding:5px;">
             <div dir="ltr"
@@ -1501,13 +1506,38 @@ function xhook_do(request, response) {
           "[aria-label='More menu items']"
         ).parentNode;
         moreTarget.insertAdjacentHTML("beforeend", downloadHref);
+        document
+          .querySelector("#tweebDL")
+          .addEventListener("click", function () {
+            unsafeWindow.TweebDownload();
+          });
+        document
+          .querySelector("#tweebArchive")
+          .addEventListener("click", function () {
+            unsafeWindow.TweebArchive();
+          });
+        document
+          .querySelector("#tweebWipe")
+          .addEventListener("click", function () {
+            unsafeWindow.TweebWipeArchive();
+          });
+        document
+          .querySelector("#tweebScroll")
+          .addEventListener("click", function () {
+            unsafeWindow.TweebScroll();
+          });
+        document
+          .querySelector("#tweebScrollRef")
+          .addEventListener("click", function () {
+            unsafeWindow.TweebScrollWRef();
+          });
       }
     }
   });
 
   ulog("Enabling Download button observer.");
   if (unsafeWindow.TweebImages === undefined) {
-    unsafeWindow.TweebImages = [];
+    unsafeWindow.TweebImages = {};
   }
   downloadBtnElementcatcher.observe(document, {
     childList: true,
