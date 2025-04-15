@@ -1146,8 +1146,9 @@ function flattenTweetDetail(entries) {
   var tweets = [];
   entries.forEach((entry) => {
     if (
-      entry.entryId.startsWith("conversationthread-") &&
-      !entry.entryId.includes("-tweet-")
+      (entry.entryId.startsWith("conversationthread-") &&
+        !entry.entryId.includes("-tweet-")) ||
+      entry.entryId.startsWith("home-conversation-")
     ) {
       tweets.push(...flattenTweetDetail(entry.content.items));
     } else if (
@@ -1184,6 +1185,14 @@ function solveTweet(tweetItem) {
       ulog(tweetContent.retweeted_status_result);
     }
   } else {
+    var fullText = tweetContent.full_text;
+
+    if (tweetContent.entities && tweetContent.entities.urls) {
+      tweetContent.entities.urls.forEach((url) => {
+        fullText = fullText.replace(url.url, url.expanded_url);
+      });
+    }
+
     simpleTweet = {
       id: tweetContent.id_str,
       text: tweetContent.full_text,

@@ -57,3 +57,7 @@ This structure is not tied to any user who scrapes it\*
 Mmm, I think views are not exactly representive of how popular a post is. Plus they can be boosted.  
 
 ...Basically I think views are probably copium fuel for certain *individuals that I shall not mention.*
+
+## Retweets...
+
+Are not included in dumps. simply because those really have a net add towards the archiving of content.
