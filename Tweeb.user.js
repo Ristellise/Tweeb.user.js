@@ -1385,8 +1385,15 @@ function xhook_do(request, response) {
     saveData(GM_getValue("tweetStorage", {}), `TweetUserScriptArchive.json`);
   }
 
+  
+  function TweebWipeArchive() {
+    GM_setValue("tweetStorage",{})
+    alert("Wiped Tweet UserScript Tweet Store.")
+  }
+
   unsafeWindow.TweebDownload = TweebDownload;
   unsafeWindow.TweebArchive = TweebDownloadArchive;
+  unsafeWindow.TweebWipeArchive = TweebWipeArchive;
 
   // [Util] New Twitter: Download button
   const downloadHref = `<a href="#none" onclick="window.TweebDownload()" aria-label="Download Media" role="link"
@@ -1407,7 +1414,7 @@ function xhook_do(request, response) {
                     class="css-1jxf684 r-bcqeeo r-1ttztb7 r-qvutc0 r-poiln3" style="text-overflow: unset;">[DL Tweets] Archive</span>
             </div>
         </div>
-    </a><a href="#none" onclick="window.TweebArchive()" aria-label="Download Media" role="link"
+    </a><a href="#none" onclick="window.TweebWipeArchive()" aria-label="Download Media" role="link"
         class="css-175oi2r r-6koalj r-eqz5dr r-16y2uox r-1habvwh r-cnw61z r-13qz1uu r-1ny4l3l r-1loqt21">
         <div class="css-175oi2r r-sdzlij r-dnmrzs r-1awozwy r-18u37iz r-1777fci r-xyw6el r-o7ynqc r-6416eg" style="padding:5px;">
             <div dir="ltr"
