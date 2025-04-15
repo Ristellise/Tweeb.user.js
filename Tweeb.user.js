@@ -1034,8 +1034,6 @@ function timelineExtractor(timelineData) {
     newInstructions.push(instruction);
   }
 
-  ulog(newInstructions);
-
   newInstructions.forEach((instruction) => {
     if (
       instruction.type == "TimelineAddEntries" &&
@@ -1108,7 +1106,7 @@ function pushTweetsBundle(entries) {
   GM_setValue("tweetStorage", tweetStore);
   unsafeWindow.TweebImages = { ...unsafeWindow.TweebImages, ...newTweets };
   tweebGlobalAdded = Object.keys(newTweets).length;
-  ulog("[newPush]", newTweets, "addedTweets", tweebGlobalAdded);
+  ulog("[newPush]", "addedTweets", tweebGlobalAdded);
 }
 
 function getRealTweetObject(entryItem) {

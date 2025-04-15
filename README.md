@@ -18,8 +18,13 @@ Using the console is recommended. Here are some functions:
 ## TODOs:
 
 [ ]: Enable (Specifically, **Optionally**) anonymous uploads of posts to a centralized server.
-  - The structure is already there, just needs a way to upload and store.
-[ ]: Store tweets with GM_setValue
+  - The structure is already there, just needs a way to upload and store.  
+- ~~Store tweets with GM_setValue~~ Done.
+
+## Potentially support...
+
+- OldTwitter: As it calls twitter apis within the extension, xhook can't exactly hook into it. Mmm not sure in a sense to fix it?
+
 
 ## License
 
