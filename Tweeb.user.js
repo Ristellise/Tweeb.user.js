@@ -7,9 +7,11 @@
 // @match        https://twitter.com/*
 // @match        https://x.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=twitter.com
+// @require      https://cdnjs.cloudflare.com/ajax/libs/humanize-duration/3.32.1/humanize-duration.min.js
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        unsafeWindow
+
 // @run-at document-start
 // ==/UserScript==
 
@@ -922,6 +924,7 @@ function yeetGrok(entry) {
   )
     baseEntry.itemContent.tweet_results.result.grok_analysis_button = false;
   else if (
+    baseEntry.itemContent.tweet_results.result &&
     baseEntry.itemContent.tweet_results.result.tweet &&
     baseEntry.itemContent.tweet_results.result.tweet.grok_analysis_button
   )
@@ -1147,6 +1150,8 @@ function flattenTweetDetail(entries) {
       (entry.entryId.startsWith("conversationthread-") &&
         !entry.entryId.includes("-tweet-")) ||
       (entry.entryId.startsWith("home-conversation-") &&
+        !entry.entryId.includes("-tweet-")) ||
+      (entry.entryId.startsWith("profile-conversation-") &&
         !entry.entryId.includes("-tweet-"))
     ) {
       tweets.push(...flattenTweetDetail(entry.content.items));
@@ -1181,7 +1186,7 @@ function solveTweet(tweetItem) {
   if (tweetContent.retweeted_status_result) {
     simpleTweet = solveTweet(tweetContent.retweeted_status_result);
     if (simpleTweet == null) {
-      ulog(tweetContent.retweeted_status_result);
+      ulog("retweetedStatus Fail", tweetContent);
     }
   } else {
     var fullText = tweetContent.full_text;
@@ -1305,6 +1310,7 @@ function xhook_do(request, response) {
     (u.pathname.endsWith("HomeLatestTimeline") ||
       u.pathname.endsWith("HomeTimeline") ||
       u.pathname.endsWith("UserTweets") ||
+      u.pathname.endsWith("UserTweetsAndReplies") ||
       u.pathname.endsWith("SearchTimeline") ||
       u.pathname.endsWith("UserMedia") ||
       u.pathname.endsWith("TweetDetail"))
@@ -1313,12 +1319,21 @@ function xhook_do(request, response) {
     try {
       var hometimeline = JSON.parse(response.text);
     } catch (error) {
-      ulog(
-        "Rate limits",
-        response.headers["x-rate-limit-remaining"],
-        "Bucket Refilled @ ",
-        new Date(response.headers["x-rate-limit-reset"] * 1000)
-      );
+      if (response.status == 429) {
+        alert(
+          `[Tweeb.user.js] Rate limit exceeded.\nLimits will refresh in: ${humanizeDuration(
+            (response.headers["x-rate-limit-reset"] - Date.now() / 1000) * 1000,
+            { round: true }
+          )}`
+        );
+        ulog(
+          "Rate limits",
+          response.headers["x-rate-limit-remaining"],
+          "Bucket Refilled @ ",
+          new Date(response.headers["x-rate-limit-reset"] * 1000)
+        );
+      }
+
       // dolly up the error to twitter to handle
       ulog(error);
       return;
@@ -1340,9 +1355,38 @@ function xhook_do(request, response) {
       request.url &&
       (u.pathname.endsWith("client_event.json") ||
         u.pathname.endsWith("error_log.json") ||
-        u.pathname.endsWith("/update_subscriptions"))
+        u.pathname.endsWith("/update_subscriptions") ||
+        // Creepy...
+        u.pathname.endsWith("2/grok/search.json"))
     ) {
       return new Response(`{}`);
+    } else if (
+      scrollData[0] &&
+      (u.hostname == "pbs.twimg.com" || u.hostname == "video.twimg.com")
+    )
+      return new Response();
+    else if (
+      request.url &&
+      u.pathname.includes("/graphql/") &&
+      (u.pathname.endsWith("HomeLatestTimeline") ||
+        u.pathname.endsWith("HomeTimeline") ||
+        u.pathname.endsWith("UserTweets") ||
+        u.pathname.endsWith("UserTweetsAndReplies") ||
+        u.pathname.endsWith("SearchTimeline") ||
+        u.pathname.endsWith("UserMedia") ||
+        u.pathname.endsWith("TweetDetail"))
+    ) {
+      ulog("Modify Params...");
+      var vars = JSON.parse(decodeURI(u.searchParams.get("variables")));
+      if ("count" in vars && vars["count"] <= 20) {
+        vars["count"] = 40;
+      }
+      if ("includePromotedContent" in vars) {
+        vars["includePromotedContent"] = false;
+      }
+
+      u.searchParams.set("variables", JSON.stringify(vars));
+      request.url = u.toString();
     }
   });
   // [Util] Any Twitter: Count total media
