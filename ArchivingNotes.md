@@ -88,4 +88,4 @@ Mmm, I think views are not exactly representive of how popular a post is. Plus t
 
 ## Repost "posts"
 
-Repost are resolved to the origina post.
+Repost are resolved to the original post.
