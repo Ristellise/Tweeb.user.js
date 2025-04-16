@@ -9,8 +9,6 @@
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=twitter.com
 // @require      https://cdnjs.cloudflare.com/ajax/libs/humanize-duration/3.32.1/humanize-duration.min.js
 // @updateURL    https://github.com/Ristellise/Tweeb.user.js/raw/refs/heads/main/Tweeb.user.js
-// @grant        GM_setValue
-// @grant        GM_getValue
 // @grant        unsafeWindow
 
 // @run-at document-start
@@ -1156,9 +1154,8 @@ function cleanupStore() {
     .sort();
   if (tweebKeys.length >= 5) {
     // localStorage lock so that 2 cleanup operations can't happen at the same time.
-    if (window.localStorage.getItem('cleanupLock'))
-      return
-    window.localStorage.setItem('cleanupLock',"1")
+    if (window.localStorage.getItem("cleanupLock")) return;
+    window.localStorage.setItem("cleanupLock", "1");
     ulog("Cleaning up bundle Storage...");
     var bigBundle = {};
     tweebKeys.forEach((tweebBundleKey) => {
@@ -1201,8 +1198,19 @@ function cleanupStore() {
         JSON.stringify(bigBundle)
       );
     }
-    window.localStorage.removeItem('cleanupLock')
+    window.localStorage.removeItem("cleanupLock");
   }
+}
+
+function wipeTweebStore() {
+  const tweebKeys = Object.keys(window.localStorage)
+    .filter((m) => {
+      return m.startsWith("tweeb-Bundle") || m.startsWith("tweeb-BatchBundle");
+    })
+    .sort();
+  tweebKeys.forEach((tweebBundleKey) => {
+    window.localStorage.removeItem(tweebBundleKey);
+  });
 }
 
 function getAllTweebStore() {
@@ -1307,6 +1315,7 @@ function solveUserObject(coreResult) {
   // So I don't have to type out .legacy lol.
   const legacyData = coreResult.legacy;
 
+  // User Object. See ArchivingNotes.md for details
   const userObject = coreResult
     ? {
         // rest_id for when needing to skip searching for IDs
@@ -1314,17 +1323,16 @@ function solveUserObject(coreResult) {
         display_name: legacyData.name,
         handle: legacyData.screen_name,
         location: legacyData.location,
+        created: Date.parse(legacyData.created_at).toFixed(0) / 1000,
         bio: fullbioText,
         // TODO: Verify with a locked account.
         locked: legacyData.protected ? true : false,
         // Verified or not. 2 values for `is_blue_verified` and `legacy.verified`.
         blue: {
-          isBlue: coreResult.is_blue_verified ? true : false,
-          legacyBlue: legacyData.verified ? true : false,
+          has: coreResult.is_blue_verified ? true : false,
+          legacy: legacyData.verified ? true : false,
           // has hidden blue.
-          hiddenBlue: coreResult.has_hidden_subscriptions_on_profile
-            ? true
-            : false,
+          hidden: coreResult.has_hidden_subscriptions_on_profile ? true : false,
         },
         // Counts for the user
         counts: {
@@ -1388,6 +1396,8 @@ function solveTweet(tweetItem) {
           fullText = fullText.replace(url.url, "");
         });
       }
+      // Trim whitespace
+      fullText = fullText.replace(/ +$/, "");
     }
 
     simpleTweet = {
@@ -1395,6 +1405,7 @@ function solveTweet(tweetItem) {
       text: fullText,
       user: solveUserObject(userCore),
       media: [],
+      created: Date.parse(tweetContent.created_at).toFixed(0) / 1000,
       counts: {
         reply: tweetContent.reply_count,
         like: tweetContent.favorite_count,
@@ -1648,7 +1659,7 @@ function xhook_hook(request, response) {
   }
 
   function TweebDownloadArchive() {
-    ulog("Getting all archived tweets. This can take some time...")
+    ulog("Getting all archived tweets. This can take some time...");
     saveData(
       getAllTweebStore(),
       `TweetUserScriptArchive-${Math.floor(Date.now() / 1000)}.json`
@@ -1661,8 +1672,8 @@ function xhook_hook(request, response) {
         "Delete *ALL* your saved tweets?\nThis is not reversible!\n(This includes current session and previously archived!)"
       )
     ) {
-      GM_setValue("tweetStorage", {});
       sessionTweetStore = {};
+      wipeTweebStore();
       alert("Wiped All stored tweets!");
     }
   }
@@ -1705,7 +1716,7 @@ function xhook_hook(request, response) {
             <div dir="ltr"
                 class="css-146c3p1 r-dnmrzs r-1udh08x r-3s2u2q r-bcqeeo r-1ttztb7 r-qvutc0 r-37j5jr r-adyw6z r-135wba7 r-16dba41 r-dlybji r-nazi8o"
                 style="text-overflow: unset; color: rgb(231, 233, 234);"><span
-                    class="css-1jxf684 r-bcqeeo r-1ttztb7 r-qvutc0 r-poiln3" style="text-overflow: unset;">Toggle AutoScroll</span>
+                    class="css-1jxf684 r-bcqeeo r-1ttztb7 r-qvutc0 r-poiln3" style="text-overflow: unset;">Auto Scroll</span>
             </div>
         </div>
     </a><a href="#none" id="tweebScrollRef" aria-label="Toggle AutoScroll With Reference" role="link"
@@ -1714,7 +1725,7 @@ function xhook_hook(request, response) {
             <div dir="ltr"
                 class="css-146c3p1 r-dnmrzs r-1udh08x r-3s2u2q r-bcqeeo r-1ttztb7 r-qvutc0 r-37j5jr r-adyw6z r-135wba7 r-16dba41 r-dlybji r-nazi8o"
                 style="text-overflow: unset; color: rgb(231, 233, 234);"><span
-                    class="css-1jxf684 r-bcqeeo r-1ttztb7 r-qvutc0 r-poiln3" style="text-overflow: unset;">Toggle AutoScroll w/ Ref</span>
+                    class="css-1jxf684 r-bcqeeo r-1ttztb7 r-qvutc0 r-poiln3" style="text-overflow: unset;">Auto Scroll [R]</span>
             </div>
         </div>
     </a>`;

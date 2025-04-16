@@ -1,24 +1,52 @@
-# About archives this tweet produces
+# Archive format
 
-The structure of the archive looks like this:
+The structure of the archive looks like this.
 
 ```js
 {
     // Tweet ID
-    "20": {
+    "1911071812236042406": {
         // Tweet ID
-        "id": "20",
+        "id": "1911071812236042406",
         // full_text
-        "text": "just setting up my twttr",
+        "text": "gm group chat say it back",
         "user": {
             // User's internal rest_id. Can be useful for skipping a handle to a rest_id lookup
-            "id": "12",
+            "id": "783214",
             // Display name of the user
-            "display_name": "jack",
+            "display_name": "X",
             // The @handle for the user
-            "handle": "jack",
+            "handle": "X",
+            "location": "everywhere",
             // Bio of the user
-            "bio": "no state is the best state"
+            "bio": "what's happening?!",
+            "locked": false,
+            // """Verified"""/blue status.
+            "blue": {
+                // Verified / Paid for it
+                "has": true,
+                // Older twitter verified
+                "legacy": false,
+                // If the user hid their blueness.
+                "hidden": false
+            },
+            // Counts for the user
+            "counts": {
+                // total posts for the user
+                "posts": 15557,
+                // Likes from a user
+                "likes": 5854,
+                // media posts
+                "media": 2455,
+                "follows": {
+                    // XXX: If anyone figures out what fast means, lmk.
+                    // ? Probably inflated / unverified follows?
+                    "fast": 0,
+                    // Most follows should be this
+                    "slow": 68982113,
+                    "friends": 1
+                }
+            }
         },
         // Any media animated_gif, video and photos are supported.
         "media": [],
@@ -34,13 +62,15 @@ The structure of the archive looks like this:
             "bookmarked": 10585
         },
         "reply": null
-    },
+    }
 }
 ```
 
 ## Timestamps?
 
-For most tweets (except those early tweets), the timestamp within the snowflake ID should be accurate enough to determine a posting time.
+~~For most tweets (except those early tweets), the timestamp within the snowflake ID should be accurate enough to determine a posting time.~~
+
+Added.
 
 ## Any potential attacks?
 
@@ -58,6 +88,6 @@ Mmm, I think views are not exactly representive of how popular a post is. Plus t
 
 ...Basically I think views are probably copium fuel for certain *individuals that I shall not mention.*
 
-## Retweets...
+## Repost "posts"
 
-Are not included in dumps. simply because those really have a net add towards the archiving of content.
+Repost are resolved to the origina post.
