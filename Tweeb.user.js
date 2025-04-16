@@ -1171,6 +1171,32 @@ function cleanupStore() {
       `tweeb-BatchBundle-${Date.now()}`,
       JSON.stringify(bigBundle)
     );
+    // Cleanup fragmented big bundles. (Compacting them into chunks of ~1000 tweets)
+    // Realistically, if you have thousands of tweets, you are running into bigger problems.
+    // - Shinon
+    const tweebBatchKeys = Object.keys(window.localStorage)
+      .filter((m) => {
+        return m.startsWith("tweeb-BatchBundle");
+      })
+      .sort();
+    var bigBundleRepack = {};
+    tweebBatchKeys.forEach((tweebBundleKey) => {
+      const partialBundle = JSON.parse(
+        window.localStorage.getItem(tweebBundleKey)
+      );
+      if (Object.keys(partialBundle).length < 1000) {
+        Object.keys(partialBundle).forEach((tweetKey) => {
+          bigBundleRepack[tweetKey] = partialBundle[tweetKey];
+        });
+        window.localStorage.removeItem(tweebBundleKey);
+      }
+    });
+    if (bigBundleRepack && Object.keys(bigBundleRepack).length > 0) {
+      window.localStorage.setItem(
+        `tweeb-BatchBundle-${Date.now()}`,
+        JSON.stringify(bigBundle)
+      );
+    }
   }
 }
 
@@ -1440,23 +1466,6 @@ function extractTweetData(entries) {
   });
 
   return allTweetsWithMedia;
-}
-
-function safePush(array, items) {
-  if (!array) {
-    array = []; // Initialize if the array is null or undefined
-  }
-  if (!Array.isArray(items)) {
-    items = [items]; // If the input is not an array, make it one.
-  }
-  var added = 0;
-  items.forEach((item) => {
-    if (!array.includes(item)) {
-      array.push(item);
-      added += 1;
-    }
-  });
-  return array, added;
 }
 
 function xhook_hook(request, response) {
