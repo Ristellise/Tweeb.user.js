@@ -4,7 +4,7 @@ Tweeb is a tampermonkey script that is useful for archiving twitter posts quickl
 
 ## Dependencies
 
-None. But this script does depend on xhook.js by jpillora.
+None. ~~But this script does depend on xhook.js by jpillora.~~ Depends on humanize-duration.min.js. Included.
 
 ## Usage
 

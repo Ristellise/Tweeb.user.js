@@ -905,6 +905,11 @@ function uLogTimelineError(timelineType, ...args) {
   ulog(`Cannot find instructions for timeline @ ${timelineType}:`, ...args);
 }
 
+/**
+ * Attempt to remove grok buttons for a given entry
+ * @param {object} entry 
+ * @returns 
+ */
 function yeetGrok(entry) {
   let baseEntry = null;
   if (entry.item) {
@@ -962,6 +967,11 @@ function yeetGrok(entry) {
   return entry;
 }
 
+/**
+ * Extract timeline data and solve for it.
+ * @param {object} timelineData The timeline data
+ * @returns 
+ */
 function timelineExtractor(timelineData) {
   var instructions = null;
   if (timelineData.data.user) {
@@ -1089,6 +1099,10 @@ function pushExistingTweets(objectEntries) {
   ulog("[refresh]", "addedTweets", tweebGlobalAdded);
 }
 
+/**
+ * Given a list of instructions, extracts and pushes tweets to the bundle.
+ * @param {array} entries 
+ */
 function pushTweetsBundle(entries) {
   if (unsafeWindow.TweebImages === undefined) {
     unsafeWindow.TweebImages = {};
@@ -1100,12 +1114,12 @@ function pushTweetsBundle(entries) {
     (key) => !seenIds.includes(key)
   );
   var newTweets = {};
+  var tweetStore = GM_getValue("tweetStorage", {});
   for (let index = 0; index < filteredTweetIds.length; index++) {
     const tweetId = filteredTweetIds[index];
     newTweets[tweetId] = timelineTweets[tweetId];
+    tweetStore[tweetId] = timelineTweets[tweetId];
   }
-  var tweetStore = GM_getValue("tweetStorage", {});
-  tweetStore = { ...tweetStore, ...unsafeWindow.TweebImages, ...newTweets };
   GM_setValue("tweetStorage", tweetStore);
   unsafeWindow.TweebImages = { ...unsafeWindow.TweebImages, ...newTweets };
   tweebGlobalAdded = Object.keys(newTweets).length;
