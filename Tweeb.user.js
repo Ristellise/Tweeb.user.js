@@ -8,6 +8,7 @@
 // @match        https://x.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=twitter.com
 // @require      https://cdnjs.cloudflare.com/ajax/libs/humanize-duration/3.32.1/humanize-duration.min.js
+// @updateURL    https://github.com/Ristellise/Tweeb.user.js/raw/refs/heads/main/Tweeb.user.js
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        unsafeWindow
