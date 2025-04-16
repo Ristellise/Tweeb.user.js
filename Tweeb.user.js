@@ -1149,9 +1149,11 @@ function writeTweetStore(newTweets) {
 }
 
 function cleanupStore() {
-  const tweebKeys = Object.keys(window.localStorage).filter((m) => {
-    return m.startsWith("tweeb-Bundle");
-  }).sort();
+  const tweebKeys = Object.keys(window.localStorage)
+    .filter((m) => {
+      return m.startsWith("tweeb-Bundle");
+    })
+    .sort();
   if (tweebKeys.length >= 5) {
     ulog("Cleaning up bundle Storage...");
     var bigBundle = {};
@@ -1175,9 +1177,11 @@ function cleanupStore() {
 function getAllTweebStore() {
   var bigBundle = {};
   // Sort by time
-  const tweebKeys = Object.keys(window.localStorage).filter((m) => {
-    return m.startsWith("tweeb-Bundle") || m.startsWith("tweeb-BatchBundle");
-  }).sort();
+  const tweebKeys = Object.keys(window.localStorage)
+    .filter((m) => {
+      return m.startsWith("tweeb-Bundle") || m.startsWith("tweeb-BatchBundle");
+    })
+    .sort();
   ulog(tweebKeys);
   tweebKeys.forEach((tweebBundleKey) => {
     const partialBundle = JSON.parse(
@@ -1302,7 +1306,8 @@ function solveUserObject(coreResult) {
             friends: legacyData.friends_count,
           },
         },
-      }: {};
+      }
+    : {};
   return userObject;
 }
 
@@ -1337,10 +1342,21 @@ function solveTweet(tweetItem) {
   } else {
     var fullText = tweetContent.full_text;
 
-    if (tweetContent.entities && tweetContent.entities.urls) {
-      tweetContent.entities.urls.forEach((url) => {
-        fullText = fullText.replace(url.url, url.expanded_url);
-      });
+    if (tweetContent.entities) {
+      if (tweetContent.entities.urls.length > 0) {
+        // ulog("Entity replacement", tweetContent.entities);
+        tweetContent.entities.urls.forEach((url) => {
+          fullText = fullText.replace(url.url, url.expanded_url);
+        });
+      }
+      if (
+        tweetContent.entities.media &&
+        tweetContent.entities.media.length > 0
+      ) {
+        tweetContent.entities.media.forEach((url) => {
+          fullText = fullText.replace(url.url, "");
+        });
+      }
     }
 
     simpleTweet = {
