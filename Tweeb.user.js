@@ -886,7 +886,7 @@ var xhook = (function () {
 
 var _ = null;
 tweebGlobalAdded = -1;
-sessionTweetStore = {}
+sessionTweetStore = {};
 
 function ulog(...args) {
   console.log(`\x1B[94m[Tweeb]\x1B[m`, ...args);
@@ -904,8 +904,6 @@ function saveData(data, fileName) {
   a.click();
   window.URL.revokeObjectURL(url);
 }
-
-
 
 function uLogTimelineError(timelineType, ...args) {
   ulog(`Cannot find instructions for timeline @ ${timelineType}:`, ...args);
@@ -1102,8 +1100,12 @@ function pushExistingTweets(objectEntries) {
   // Force negative to ensure page scrolls
   tweebGlobalAdded = -1;
   ulog("[refresh]", "addedTweets", tweebGlobalAdded);
+  const timer = Date.now();
   writeTweetStore(newTweets);
-  ulog("[newPush]", "Saved to store");
+  ulog(
+    "[refresh]",
+    `Saved to store. Took: ${(Date.now() - timer) / 1000}s to complete.`
+  );
 }
 
 /**
@@ -1130,19 +1132,65 @@ function pushTweetsBundle(entries) {
 
   tweebGlobalAdded = Object.keys(newTweets).length;
   ulog("[newPush]", "addedTweets", tweebGlobalAdded);
+  const timer = Date.now();
   writeTweetStore(newTweets);
-  ulog("[newPush]", "Saved to store");
+  ulog(
+    "[newPush]",
+    `Saved to store. Took: ${(Date.now() - timer) / 1000}s to complete.`
+  );
 }
 
 function writeTweetStore(newTweets) {
-  var tweetStore = GM_getValue("tweetStorage", {});
-  const tweetKeys = Object.keys(newTweets);
-  for (let index = 0; index < tweetKeys.length; index++) {
-    const tweetId = tweetKeys[index];
-    tweetStore[tweetId] = newTweets[tweetId];
-  }
-  GM_setValue("tweetStorage", tweetStore);
+  window.localStorage.setItem(
+    `tweeb-Bundle-${Date.now()}`,
+    JSON.stringify(newTweets)
+  );
+  cleanupStore();
 }
+
+function cleanupStore() {
+  const tweebKeys = Object.keys(window.localStorage).filter((m) => {
+    return m.startsWith("tweeb-Bundle");
+  }).sort();
+  if (tweebKeys.length >= 5) {
+    ulog("Cleaning up bundle Storage...");
+    var bigBundle = {};
+    tweebKeys.forEach((tweebBundleKey) => {
+      const partialBundle = JSON.parse(
+        window.localStorage.getItem(tweebBundleKey)
+      );
+      ulog(partialBundle);
+      Object.keys(partialBundle).forEach((tweetKey) => {
+        bigBundle[tweetKey] = partialBundle[tweetKey];
+      });
+      window.localStorage.removeItem(tweebBundleKey);
+    });
+    window.localStorage.setItem(
+      `tweeb-BatchBundle-${Date.now()}`,
+      JSON.stringify(bigBundle)
+    );
+  }
+}
+
+function getAllTweebStore() {
+  var bigBundle = {};
+  // Sort by time
+  const tweebKeys = Object.keys(window.localStorage).filter((m) => {
+    return m.startsWith("tweeb-Bundle") || m.startsWith("tweeb-BatchBundle");
+  }).sort();
+  ulog(tweebKeys);
+  tweebKeys.forEach((tweebBundleKey) => {
+    const partialBundle = JSON.parse(
+      window.localStorage.getItem(tweebBundleKey)
+    );
+    // ulog(partialBundle);
+    Object.keys(partialBundle).forEach((tweetKey) => {
+      bigBundle[tweetKey] = partialBundle[tweetKey];
+    });
+  });
+  return bigBundle;
+}
+
 /**
  * Finds and extracts the proper root for the tweet object.
  * @param {object} entryItem potential tweet entry from the timeline
@@ -1225,8 +1273,7 @@ function solveUserObject(coreResult) {
   const legacyData = coreResult.legacy;
 
   const userObject = coreResult
-    ? {}
-    : {
+    ? {
         // rest_id for when needing to skip searching for IDs
         id: coreResult.rest_id,
         display_name: legacyData.name,
@@ -1255,7 +1302,7 @@ function solveUserObject(coreResult) {
             friends: legacyData.friends_count,
           },
         },
-      };
+      }: {};
   return userObject;
 }
 
@@ -1572,13 +1619,17 @@ function xhook_hook(request, response) {
 
   function TweebDownloadArchive() {
     saveData(
-      GM_getValue("tweetStorage", {}),
+      getAllTweebStore(),
       `TweetUserScriptArchive-${Math.floor(Date.now() / 1000)}.json`
     );
   }
 
   function TweebWipeArchive() {
-    if (confirm("Delete *ALL* your saved tweets?\nThis is not reversible!\n(This includes current session and previously archived!)")) {
+    if (
+      confirm(
+        "Delete *ALL* your saved tweets?\nThis is not reversible!\n(This includes current session and previously archived!)"
+      )
+    ) {
       GM_setValue("tweetStorage", {});
       sessionTweetStore = {};
       alert("Wiped All stored tweets!");
@@ -1738,7 +1789,6 @@ function xhook_hook(request, response) {
       scrollData[0] = setInterval(scrollLoop, 100);
     }
   }
-
 
   unsafeWindow.TweebScroll = DoomScroller;
   // window.TweebIds = tweetIds;
