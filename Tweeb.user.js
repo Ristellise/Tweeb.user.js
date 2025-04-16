@@ -1498,23 +1498,24 @@ function xhook_hook(request, response) {
       u.pathname.endsWith("TweetDetail"))
   ) {
     // ulog(u,"Captured")
+    if (response.status == 429) {
+      alert(
+        `[Tweeb.user.js] Rate limit exceeded.\nLimits will refresh in: ${humanizeDuration(
+          (response.headers["x-rate-limit-reset"] - Date.now() / 1000) * 1000,
+          { round: true }
+        )}`
+      );
+      ulog(
+        "Rate limits",
+        response.headers["x-rate-limit-remaining"],
+        "Bucket Refilled @ ",
+        new Date(response.headers["x-rate-limit-reset"] * 1000)
+      );
+      return;
+    }
     try {
       var hometimeline = JSON.parse(response.text);
     } catch (error) {
-      if (response.status == 429) {
-        alert(
-          `[Tweeb.user.js] Rate limit exceeded.\nLimits will refresh in: ${humanizeDuration(
-            (response.headers["x-rate-limit-reset"] - Date.now() / 1000) * 1000,
-            { round: true }
-          )}`
-        );
-        ulog(
-          "Rate limits",
-          response.headers["x-rate-limit-remaining"],
-          "Bucket Refilled @ ",
-          new Date(response.headers["x-rate-limit-reset"] * 1000)
-        );
-      }
       // dolly up the error to twitter to handle
       ulog(error);
       return;

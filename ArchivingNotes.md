@@ -68,9 +68,7 @@ The structure of the archive looks like this.
 
 ## Timestamps?
 
-~~For most tweets (except those early tweets), the timestamp within the snowflake ID should be accurate enough to determine a posting time.~~
-
-Added.
+~~For most tweets (except those early tweets), the timestamp within the snowflake ID should be accurate enough to determine a posting time.~~ Added timestamps.
 
 ## Any potential attacks?
 
