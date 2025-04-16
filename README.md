@@ -16,12 +16,9 @@ Tweeb.user.js intercepts requests and reads the payload directly. Common functio
 `Auto Scroll`: Toggles Auto Scrolls until the page stops updated.  
 `Auto Scroll [R]`: Toggles Auto Scrolls with a json file (downloaded from session or archive) as reference.  
 
-~~At the moment the script is quite finnicky, requiring you to refresh the page to reset a "Capture"~~
+## What does this script not do
 
-~~Using the console is recommended. Here are some functions:~~
-
-~~1. `TweebScroll()`: Start scrolling the page, capturing each tweet as it is loaded.~~
-~~2. `TweebDownload()`: Dumps what has been captured.~~
+- It doesn't bypass any limits imposed on you by twitter (Subscribe upsells and the like)
 
 ## TODOs:
 
