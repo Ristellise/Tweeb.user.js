@@ -879,6 +879,14 @@ var xhook = (function () {
 
 // End xhook mod
 
+/*
+  >: Global defines.
+*/
+
+var _ = null;
+tweebGlobalAdded = -1;
+sessionTweetStore = {}
+
 function ulog(...args) {
   console.log(`\x1B[94m[Tweeb]\x1B[m`, ...args);
 }
@@ -889,15 +897,14 @@ function saveData(data, fileName) {
     blob = new Blob([json], {
       type: "text/json",
     }),
-    url = unsafeWindow.URL.createObjectURL(blob);
+    url = window.URL.createObjectURL(blob);
   a.href = url;
   a.download = fileName;
   a.click();
-  unsafeWindow.URL.revokeObjectURL(url);
+  window.URL.revokeObjectURL(url);
 }
 
-var _ = null;
-tweebGlobalAdded = -1;
+
 
 function uLogTimelineError(timelineType, ...args) {
   ulog(`Cannot find instructions for timeline @ ${timelineType}:`, ...args);
@@ -1076,11 +1083,11 @@ function timelineExtractor(timelineData) {
 }
 
 function pushExistingTweets(objectEntries) {
-  if (unsafeWindow.TweebImages === undefined) {
-    unsafeWindow.TweebImages = {};
+  if (sessionTweetStore === undefined) {
+    sessionTweetStore = {};
   }
 
-  const seenIds = Object.keys(unsafeWindow.TweebImages);
+  const seenIds = Object.keys(sessionTweetStore);
   var timelineTweets = objectEntries;
   var filteredTweetIds = Object.keys(timelineTweets).filter(
     (key) => !seenIds.includes(key)
@@ -1090,7 +1097,7 @@ function pushExistingTweets(objectEntries) {
     const tweetId = filteredTweetIds[index];
     newTweets[tweetId] = timelineTweets[tweetId];
   }
-  unsafeWindow.TweebImages = { ...unsafeWindow.TweebImages, ...newTweets };
+  sessionTweetStore = { ...sessionTweetStore, ...newTweets };
   // Force negative to ensure page scrolls
   tweebGlobalAdded = -1;
   ulog("[refresh]", "addedTweets", tweebGlobalAdded);
@@ -1103,11 +1110,11 @@ function pushExistingTweets(objectEntries) {
  * @param {array} entries
  */
 function pushTweetsBundle(entries) {
-  if (unsafeWindow.TweebImages === undefined) {
-    unsafeWindow.TweebImages = {};
+  if (sessionTweetStore === undefined) {
+    sessionTweetStore = {};
   }
 
-  const seenIds = Object.keys(unsafeWindow.TweebImages);
+  const seenIds = Object.keys(sessionTweetStore);
   var timelineTweets = extractTweetData(entries);
   var filteredTweetIds = Object.keys(timelineTweets).filter(
     (key) => !seenIds.includes(key)
@@ -1118,7 +1125,7 @@ function pushTweetsBundle(entries) {
     const tweetId = filteredTweetIds[index];
     newTweets[tweetId] = timelineTweets[tweetId];
   }
-  unsafeWindow.TweebImages = { ...unsafeWindow.TweebImages, ...newTweets };
+  sessionTweetStore = { ...sessionTweetStore, ...newTweets };
 
   tweebGlobalAdded = Object.keys(newTweets).length;
   ulog("[newPush]", "addedTweets", tweebGlobalAdded);
@@ -1213,31 +1220,38 @@ function solveUserObject(coreResult) {
       fullbioText = fullbioText.replace(url.url, url.expanded_url);
     });
   }
-  const userObject = userCore
+  // So I don't have to type out .legacy lol.
+  const legacyData = coreResult.legacy;
+
+  const userObject = coreResult
     ? {}
     : {
+        // rest_id for when needing to skip searching for IDs
         id: coreResult.rest_id,
-        display_name: coreResult.legacy.name,
-        handle: coreResult.legacy.screen_name,
-        location: coreResult.legacy.location,
+        display_name: legacyData.name,
+        handle: legacyData.screen_name,
+        location: legacyData.location,
         bio: fullbioText,
         // TODO: Verify with a locked account.
-        locked: coreResult.legacy.protected ? true : false,
+        locked: legacyData.protected ? true : false,
+        // Verified or not. 2 values for `is_blue_verified` and `legacy.verified`.
         blue: {
           isBlue: coreResult.is_blue_verified ? true : false,
-          legacyBlue: coreResult.legacy.verified ? true : false,
+          legacyBlue: legacyData.verified ? true : false,
+          // has hidden blue.
           hiddenBlue: coreResult.has_hidden_subscriptions_on_profile
             ? true
             : false,
         },
+        // Counts for the user
         counts: {
-          posts: coreResult.legacy.statuses_count,
-          likes: coreResult.legacy.favourites_count,
-          media: coreResult.legacy.media_count,
+          posts: legacyData.statuses_count,
+          likes: legacyData.favourites_count,
+          media: legacyData.media_count,
           follows: {
-            fast: coreResult.legacy.fast_followers_count,
-            slow: coreResult.legacy.normal_followers_count,
-            friends: coreResult.legacy.friends_count,
+            fast: legacyData.fast_followers_count,
+            slow: legacyData.normal_followers_count,
+            friends: legacyData.friends_count,
           },
         },
       };
@@ -1469,9 +1483,9 @@ function xhook_hook(request, response) {
   // [Util] Any Twitter: Count total media
   function TweebCountMedia() {
     var totalMedia = 0;
-    Object.keys(unsafeWindow.TweebImages).forEach((tweetKey) => {
-      if (unsafeWindow.TweebImages[tweetKey].media)
-        totalMedia += unsafeWindow.TweebImages[tweetKey].media.length;
+    Object.keys(sessionTweetStore).forEach((tweetKey) => {
+      if (sessionTweetStore[tweetKey].media)
+        totalMedia += sessionTweetStore[tweetKey].media.length;
     });
     ulog("Media Items:", totalMedia);
   }
@@ -1491,8 +1505,8 @@ function xhook_hook(request, response) {
       DoomScroller(); //start doomscroller
       previousImageCount = Object.keys(tweets).length;
       imageCheckInterval = setInterval(() => {
-        if (!unsafeWindow.TweebImages) {
-          console.warn("unsafeWindow.TweebImages is not defined yet.");
+        if (!sessionTweetStore) {
+          console.warn("sessionTweetStore is not defined yet.");
           return;
         }
         if (tweebGlobalAdded === 0) {
@@ -1525,7 +1539,7 @@ function xhook_hook(request, response) {
         // }
         pushExistingTweets(includedTweebs);
         ulog(`Added ${tweebGlobalAdded} Inital medias`);
-        startImageCheck(unsafeWindow.TweebImages);
+        startImageCheck(sessionTweetStore);
       };
     };
 
@@ -1552,7 +1566,7 @@ function xhook_hook(request, response) {
       currentPage = currentPage.substring(1);
       currentPage = `${currentPage}.json`;
     }
-    saveData(unsafeWindow.TweebImages, currentPage);
+    saveData(sessionTweetStore, currentPage);
   }
 
   function TweebDownloadArchive() {
@@ -1563,9 +1577,10 @@ function xhook_hook(request, response) {
   }
 
   function TweebWipeArchive() {
-    if (confirm("Delete all your saved tweets? This is not reversible!")) {
+    if (confirm("Delete *ALL* your saved tweets?\nThis is not reversible!\n(This includes current session and previously archived!)")) {
       GM_setValue("tweetStorage", {});
-      alert("Wiped Tweet UserScript Tweet Store.");
+      sessionTweetStore = {};
+      alert("Wiped All stored tweets!");
     }
   }
 
@@ -1598,7 +1613,7 @@ function xhook_hook(request, response) {
             <div dir="ltr"
                 class="css-146c3p1 r-dnmrzs r-1udh08x r-3s2u2q r-bcqeeo r-1ttztb7 r-qvutc0 r-37j5jr r-adyw6z r-135wba7 r-16dba41 r-dlybji r-nazi8o"
                 style="text-overflow: unset; color: rgb(231, 233, 234);"><span
-                    class="css-1jxf684 r-bcqeeo r-1ttztb7 r-qvutc0 r-poiln3" style="text-overflow: unset;">Wipe Script Archive</span>
+                    class="css-1jxf684 r-bcqeeo r-1ttztb7 r-qvutc0 r-poiln3" style="text-overflow: unset;">Wipe Session & Archive</span>
             </div>
         </div>
     </a><a href="#none" id="tweebScroll" aria-label="Toggle AutoScroll" role="link"
@@ -1667,8 +1682,8 @@ function xhook_hook(request, response) {
   });
 
   ulog("Enabling Download button observer.");
-  if (unsafeWindow.TweebImages === undefined) {
-    unsafeWindow.TweebImages = {};
+  if (sessionTweetStore === undefined) {
+    sessionTweetStore = {};
   }
   downloadBtnElementcatcher.observe(document, {
     childList: true,
@@ -1723,12 +1738,8 @@ function xhook_hook(request, response) {
     }
   }
 
-  function TweebReset() {
-    if (windunsafeWindowow.TweebImages) unsafeWindow.TweebImages = {};
-  }
 
   unsafeWindow.TweebScroll = DoomScroller;
   // window.TweebIds = tweetIds;
   unsafeWindow.TweebScrollWRef = TweebScrollWithReference;
-  unsafeWindow.TweebClear = TweebReset;
 })();
