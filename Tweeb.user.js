@@ -1155,6 +1155,10 @@ function cleanupStore() {
     })
     .sort();
   if (tweebKeys.length >= 5) {
+    // localStorage lock so that 2 cleanup operations can't happen at the same time.
+    if (window.localStorage.getItem('cleanupLock'))
+      return
+    window.localStorage.setItem('cleanupLock',"1")
     ulog("Cleaning up bundle Storage...");
     var bigBundle = {};
     tweebKeys.forEach((tweebBundleKey) => {
@@ -1197,6 +1201,7 @@ function cleanupStore() {
         JSON.stringify(bigBundle)
       );
     }
+    window.localStorage.removeItem('cleanupLock')
   }
 }
 
@@ -1643,6 +1648,7 @@ function xhook_hook(request, response) {
   }
 
   function TweebDownloadArchive() {
+    ulog("Getting all archived tweets. This can take some time...")
     saveData(
       getAllTweebStore(),
       `TweetUserScriptArchive-${Math.floor(Date.now() / 1000)}.json`
