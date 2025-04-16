@@ -885,8 +885,6 @@ function ulog(...args) {
 
 function saveData(data, fileName) {
   var a = document.createElement("a");
-  // document.body.appendChild(a);
-  // a.style = "display: none";
   var json = JSON.stringify(data),
     blob = new Blob([json], {
       type: "text/json",
@@ -907,8 +905,8 @@ function uLogTimelineError(timelineType, ...args) {
 
 /**
  * Attempt to remove grok buttons for a given entry
- * @param {object} entry 
- * @returns 
+ * @param {object} entry
+ * @returns
  */
 function yeetGrok(entry) {
   let baseEntry = null;
@@ -970,7 +968,7 @@ function yeetGrok(entry) {
 /**
  * Extract timeline data and solve for it.
  * @param {object} timelineData The timeline data
- * @returns 
+ * @returns
  */
 function timelineExtractor(timelineData) {
   var instructions = null;
@@ -1047,6 +1045,8 @@ function timelineExtractor(timelineData) {
     newInstructions.push(instruction);
   }
 
+  // Extract timeline data
+
   newInstructions.forEach((instruction) => {
     if (
       instruction.type == "TimelineAddEntries" &&
@@ -1090,18 +1090,17 @@ function pushExistingTweets(objectEntries) {
     const tweetId = filteredTweetIds[index];
     newTweets[tweetId] = timelineTweets[tweetId];
   }
-  var tweetStore = GM_getValue("tweetStorage", {});
-  tweetStore = { ...tweetStore, ...unsafeWindow.TweebImages, ...newTweets };
-  GM_setValue("tweetStorage", tweetStore);
   unsafeWindow.TweebImages = { ...unsafeWindow.TweebImages, ...newTweets };
   // Force negative to ensure page scrolls
   tweebGlobalAdded = -1;
   ulog("[refresh]", "addedTweets", tweebGlobalAdded);
+  writeTweetStore(newTweets);
+  ulog("[newPush]", "Saved to store");
 }
 
 /**
  * Given a list of instructions, extracts and pushes tweets to the bundle.
- * @param {array} entries 
+ * @param {array} entries
  */
 function pushTweetsBundle(entries) {
   if (unsafeWindow.TweebImages === undefined) {
@@ -1114,18 +1113,33 @@ function pushTweetsBundle(entries) {
     (key) => !seenIds.includes(key)
   );
   var newTweets = {};
-  var tweetStore = GM_getValue("tweetStorage", {});
+
   for (let index = 0; index < filteredTweetIds.length; index++) {
     const tweetId = filteredTweetIds[index];
     newTweets[tweetId] = timelineTweets[tweetId];
-    tweetStore[tweetId] = timelineTweets[tweetId];
   }
-  GM_setValue("tweetStorage", tweetStore);
   unsafeWindow.TweebImages = { ...unsafeWindow.TweebImages, ...newTweets };
+
   tweebGlobalAdded = Object.keys(newTweets).length;
   ulog("[newPush]", "addedTweets", tweebGlobalAdded);
+  writeTweetStore(newTweets);
+  ulog("[newPush]", "Saved to store");
 }
 
+function writeTweetStore(newTweets) {
+  var tweetStore = GM_getValue("tweetStorage", {});
+  const tweetKeys = Object.keys(newTweets);
+  for (let index = 0; index < tweetKeys.length; index++) {
+    const tweetId = tweetKeys[index];
+    tweetStore[tweetId] = newTweets[tweetId];
+  }
+  GM_setValue("tweetStorage", tweetStore);
+}
+/**
+ * Finds and extracts the proper root for the tweet object.
+ * @param {object} entryItem potential tweet entry from the timeline
+ * @returns null if not a tweet, else the tweet object
+ */
 function getRealTweetObject(entryItem) {
   // ulog(entryItem)
   if (entryItem.entryId) {
@@ -1157,9 +1171,14 @@ function getRealTweetObject(entryItem) {
   return null;
 }
 
-function flattenTweetDetail(entries) {
+/**
+ * Flattens entries of instructions (mixed conversations and regular tweets) into 1 single flat array of tweets
+ * @param {array} instructionEntries list of entries from the timeline
+ * @returns flattened array for tweets
+ */
+function flattenTweetDetail(instructionEntries) {
   var tweets = [];
-  entries.forEach((entry) => {
+  instructionEntries.forEach((entry) => {
     if (
       (entry.entryId.startsWith("conversationthread-") &&
         !entry.entryId.includes("-tweet-")) ||
@@ -1181,6 +1200,55 @@ function flattenTweetDetail(entries) {
   return tweets;
 }
 
+function solveUserObject(coreResult) {
+  if (!coreResult) return {};
+  var fullbioText = coreResult.legacy.description;
+  if (
+    coreResult.legacy &&
+    coreResult.legacy.description &&
+    coreResult.legacy.entities.description &&
+    coreResult.legacy.entities.description.urls
+  ) {
+    coreResult.legacy.entities.description.urls.forEach((url) => {
+      fullbioText = fullbioText.replace(url.url, url.expanded_url);
+    });
+  }
+  const userObject = userCore
+    ? {}
+    : {
+        id: coreResult.rest_id,
+        display_name: coreResult.legacy.name,
+        handle: coreResult.legacy.screen_name,
+        location: coreResult.legacy.location,
+        bio: fullbioText,
+        // TODO: Verify with a locked account.
+        locked: coreResult.legacy.protected ? true : false,
+        blue: {
+          isBlue: coreResult.is_blue_verified ? true : false,
+          legacyBlue: coreResult.legacy.verified ? true : false,
+          hiddenBlue: coreResult.has_hidden_subscriptions_on_profile
+            ? true
+            : false,
+        },
+        counts: {
+          posts: coreResult.legacy.statuses_count,
+          likes: coreResult.legacy.favourites_count,
+          media: coreResult.legacy.media_count,
+          follows: {
+            fast: coreResult.legacy.fast_followers_count,
+            slow: coreResult.legacy.normal_followers_count,
+            friends: coreResult.legacy.friends_count,
+          },
+        },
+      };
+  return userObject;
+}
+
+/**
+ * Solves a tweetEntry/Object.
+ * @param {object} tweetItem The tweet Object. Could be almost any type.
+ * @returns null if no tweetObject is found, a object if a simplified tweet object can be constructed
+ */
 function solveTweet(tweetItem) {
   const tweetObject = getRealTweetObject(tweetItem);
 
@@ -1188,10 +1256,12 @@ function solveTweet(tweetItem) {
     // ulog("tweetObjectis Null", tweetObject, tweetItem);
     return null;
   }
+  // Tombstone tweets show up as this before being removed from the timeline entirely on a page refresh.
   if (tweetObject.__typename && tweetObject.__typename.includes("Tombstone"))
     return null;
-  var userCore = { name: "?", display_name: "?", handle: "@", bio: "?" };
+  var userCore = null;
   // ulog(tweetObject);
+  // Can be temporal (A tweet being deleted before being marked as tombstone'd.)
   if (tweetObject.core.user_results) {
     userCore = tweetObject.core.user_results.result;
   }
@@ -1213,13 +1283,8 @@ function solveTweet(tweetItem) {
 
     simpleTweet = {
       id: tweetContent.id_str,
-      text: tweetContent.full_text,
-      user: {
-        id: userCore.rest_id,
-        display_name: userCore.legacy.name,
-        handle: userCore.legacy.screen_name,
-        bio: userCore.legacy.description,
-      },
+      text: fullText,
+      user: solveUserObject(userCore),
       media: [],
       counts: {
         reply: tweetContent.reply_count,
@@ -1234,7 +1299,7 @@ function solveTweet(tweetItem) {
   }
 
   if (tweetContent.quoted_status_result) {
-    // replies might be partial
+    // quotes might be partial
     simpleTweet.quote = solveTweet(tweetContent.quoted_status_result);
   }
 
@@ -1316,7 +1381,7 @@ function safePush(array, items) {
   return array, added;
 }
 
-function xhook_do(request, response) {
+function xhook_hook(request, response) {
   const u = new URL(request.url);
   if (
     request.url &&
@@ -1347,12 +1412,10 @@ function xhook_do(request, response) {
           new Date(response.headers["x-rate-limit-reset"] * 1000)
         );
       }
-
       // dolly up the error to twitter to handle
       ulog(error);
       return;
     }
-
     timelineExtractor(hometimeline);
     response.text = JSON.stringify(hometimeline);
   }
@@ -1362,7 +1425,7 @@ function xhook_do(request, response) {
 (function () {
   "use strict";
 
-  xhook.after(xhook_do);
+  xhook.after(xhook_hook);
   xhook.before(function (request) {
     const u = new URL(request.url);
     if (
@@ -1392,10 +1455,10 @@ function xhook_do(request, response) {
     ) {
       ulog("Modify Params...");
       var vars = JSON.parse(decodeURI(u.searchParams.get("variables")));
-      if ("count" in vars && vars["count"] <= 20) {
+      if (vars && "count" in vars && vars["count"] <= 20) {
         vars["count"] = 40;
       }
-      if ("includePromotedContent" in vars) {
+      if (vars && "includePromotedContent" in vars) {
         vars["includePromotedContent"] = false;
       }
 
