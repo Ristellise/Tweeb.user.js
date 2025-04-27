@@ -1067,13 +1067,16 @@ function timelineExtractor(timelineData) {
       pushTweetsBundle(instruction.moduleItems);
     } else if (instruction.type == "TimelineAddEntries") {
       // ulog("Adding Common timeline entries...")
+      // ulog(instruction.entries)
       if (
+        instruction.entries.length > 0 &&
         instruction.entries.length <= 2 &&
         instruction.entries[0].entryId.startsWith("cursor-") &&
         instruction.entries[1].entryId.startsWith("cursor-")
       ) {
         tweebGlobalAdded = 0;
         // do nothing for blank cursors
+      } else if (instruction.entries.length == 0) {
       } else pushTweetsBundle(instruction.entries);
     }
   });
@@ -1286,7 +1289,11 @@ function flattenTweetDetail(instructionEntries) {
       (entry.entryId.startsWith("profile-conversation-") &&
         !entry.entryId.includes("-tweet-"))
     ) {
-      tweets.push(...flattenTweetDetail(entry.content.items));
+      if (entry.content) {
+        tweets.push(...flattenTweetDetail(entry.content.items));
+      }
+      // else if (entry.item.)
+      // ulog()
     } else if (
       entry.entryId.startsWith("conversationthread-") &&
       entry.entryId.includes("-tweet-")
