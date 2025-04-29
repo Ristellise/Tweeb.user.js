@@ -1146,16 +1146,17 @@ function writeTweetStore(newTweets) {
     `tweeb-Bundle-${Date.now()}`,
     JSON.stringify(newTweets)
   );
-  cleanupStore();
+  // cleanupStore();
 }
+
 
 function cleanupStore() {
   const tweebKeys = Object.keys(window.localStorage)
     .filter((m) => {
-      return m.startsWith("tweeb-Bundle");
+      return m.startsWith("tweeb-Bundle") || m.startsWith("tweeb-BatchBundle");
     })
     .sort();
-  if (tweebKeys.length >= 5) {
+  if (tweebKeys.length >= 50) {
     // localStorage lock so that 2 cleanup operations can't happen at the same time.
     if (window.localStorage.getItem("cleanupLock")) return;
     window.localStorage.setItem("cleanupLock", "1");
@@ -1175,32 +1176,6 @@ function cleanupStore() {
       `tweeb-BatchBundle-${Date.now()}`,
       JSON.stringify(bigBundle)
     );
-    // Cleanup fragmented big bundles. (Compacting them into chunks of ~1000 tweets)
-    // Realistically, if you have thousands of tweets, you are running into bigger problems.
-    // - Shinon
-    const tweebBatchKeys = Object.keys(window.localStorage)
-      .filter((m) => {
-        return m.startsWith("tweeb-BatchBundle");
-      })
-      .sort();
-    var bigBundleRepack = {};
-    tweebBatchKeys.forEach((tweebBundleKey) => {
-      const partialBundle = JSON.parse(
-        window.localStorage.getItem(tweebBundleKey)
-      );
-      if (Object.keys(partialBundle).length < 1000) {
-        Object.keys(partialBundle).forEach((tweetKey) => {
-          bigBundleRepack[tweetKey] = partialBundle[tweetKey];
-        });
-        window.localStorage.removeItem(tweebBundleKey);
-      }
-    });
-    if (bigBundleRepack && Object.keys(bigBundleRepack).length > 0) {
-      window.localStorage.setItem(
-        `tweeb-BatchBundle-${Date.now()}`,
-        JSON.stringify(bigBundle)
-      );
-    }
     window.localStorage.removeItem("cleanupLock");
   }
 }
