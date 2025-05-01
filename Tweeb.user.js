@@ -10,6 +10,10 @@
 // @require      https://cdnjs.cloudflare.com/ajax/libs/humanize-duration/3.32.1/humanize-duration.min.js
 // @updateURL    https://github.com/Ristellise/Tweeb.user.js/raw/refs/heads/main/Tweeb.user.js
 // @grant        unsafeWindow
+// @grant        GM_setValue
+// @grant        GM_getValue
+// @grant        GM_deleteValue
+// @grant        GM_listValues
 
 // @run-at document-start
 // ==/UserScript==
@@ -1142,68 +1146,71 @@ function pushTweetsBundle(entries) {
 }
 
 function writeTweetStore(newTweets) {
-  window.localStorage.setItem(
-    `tweeb-Bundle-${Date.now()}`,
-    JSON.stringify(newTweets)
-  );
+  GM_setValue(`tweeb-Bundle-${Date.now()}`, JSON.stringify(newTweets));
   // cleanupStore();
 }
 
-
 function cleanupStore() {
-  const tweebKeys = Object.keys(window.localStorage)
+  const tweebKeys = GM_listValues()
     .filter((m) => {
       return m.startsWith("tweeb-Bundle") || m.startsWith("tweeb-BatchBundle");
     })
     .sort();
   if (tweebKeys.length >= 50) {
     // localStorage lock so that 2 cleanup operations can't happen at the same time.
-    if (window.localStorage.getItem("cleanupLock")) return;
-    window.localStorage.setItem("cleanupLock", "1");
+    if (GM_getValue("cleanupLock")) return;
+    GM_setValue("cleanupLock", "1");
     ulog("Cleaning up bundle Storage...");
     var bigBundle = {};
     tweebKeys.forEach((tweebBundleKey) => {
-      const partialBundle = JSON.parse(
-        window.localStorage.getItem(tweebBundleKey)
-      );
+      const partialBundle = JSON.parse(GM_getValue(tweebBundleKey));
       ulog(partialBundle);
       Object.keys(partialBundle).forEach((tweetKey) => {
         bigBundle[tweetKey] = partialBundle[tweetKey];
       });
-      window.localStorage.removeItem(tweebBundleKey);
+      GM_deleteValue(tweebBundleKey);
     });
-    window.localStorage.setItem(
-      `tweeb-BatchBundle-${Date.now()}`,
-      JSON.stringify(bigBundle)
-    );
-    window.localStorage.removeItem("cleanupLock");
+    GM_setValue(`tweeb-BatchBundle-${Date.now()}`, JSON.stringify(bigBundle));
+    GM_;
+    GM_deleteValue("cleanupLock");
   }
 }
 
+function debugStorage() {
+  ulog(
+    "List of bundles in storage are:",
+    GM_listValues()
+      .filter((m) => {
+        return (
+          m.startsWith("tweeb-Bundle") || m.startsWith("tweeb-BatchBundle")
+        );
+      })
+      .sort()
+  );
+}
+
 function wipeTweebStore() {
-  const tweebKeys = Object.keys(window.localStorage)
+  const tweebKeys = GM_listValues()
     .filter((m) => {
       return m.startsWith("tweeb-Bundle") || m.startsWith("tweeb-BatchBundle");
     })
     .sort();
   tweebKeys.forEach((tweebBundleKey) => {
-    window.localStorage.removeItem(tweebBundleKey);
+    GM_deleteValue(tweebBundleKey);
   });
 }
 
 function getAllTweebStore() {
   var bigBundle = {};
   // Sort by time
-  const tweebKeys = Object.keys(window.localStorage)
+  const tweebKeys = GM_listValues()
     .filter((m) => {
       return m.startsWith("tweeb-Bundle") || m.startsWith("tweeb-BatchBundle");
     })
     .sort();
   ulog(tweebKeys);
   tweebKeys.forEach((tweebBundleKey) => {
-    const partialBundle = JSON.parse(
-      window.localStorage.getItem(tweebBundleKey)
-    );
+    const partialBundle = JSON.parse(GM_getValue(tweebBundleKey));
     // ulog(partialBundle);
     Object.keys(partialBundle).forEach((tweetKey) => {
       bigBundle[tweetKey] = partialBundle[tweetKey];
@@ -1233,6 +1240,8 @@ function getRealTweetObject(entryItem) {
       return baseentry.itemContent.tweet_results.result;
     } else if (entryItem.entryId.includes("-tweet-")) {
       if (entryItem.item.itemContent)
+        if (entryItem.item.itemContent.tweet_results.result.tweet)
+          return entryItem.item.itemContent.tweet_results.result.tweet;
         return entryItem.item.itemContent.tweet_results.result;
     }
   } else if (
@@ -1338,6 +1347,7 @@ function solveUserObject(coreResult) {
  * @returns null if no tweetObject is found, a object if a simplified tweet object can be constructed
  */
 function solveTweet(tweetItem) {
+  // ulog(tweetItem);
   const tweetObject = getRealTweetObject(tweetItem);
 
   if (tweetObject == null) {
@@ -1348,7 +1358,8 @@ function solveTweet(tweetItem) {
   if (tweetObject.__typename && tweetObject.__typename.includes("Tombstone"))
     return null;
   var userCore = null;
-  // ulog(tweetObject);
+  if (!tweetObject.core)
+    ulog("Core result not found.",tweetObject, tweetItem);
   // Can be temporal (A tweet being deleted before being marked as tombstone'd.)
   if (tweetObject.core.user_results) {
     userCore = tweetObject.core.user_results.result;
@@ -1664,6 +1675,7 @@ function xhook_hook(request, response) {
   unsafeWindow.TweebDownload = TweebDownload;
   unsafeWindow.TweebArchive = TweebDownloadArchive;
   unsafeWindow.TweebWipeArchive = TweebWipeArchive;
+  unsafeWindow.TweebArchiveDebug = debugStorage;
 
   // [Util] New Twitter: Download button
   const downloadHref = `<a href="#none" id="tweebDL" aria-label="Download Media" role="link"
