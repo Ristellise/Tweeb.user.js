@@ -1055,6 +1055,8 @@ function timelineExtractor(timelineData) {
 
   // Extract timeline data
 
+  var hasPushedTweets = false;
+
   newInstructions.forEach((instruction) => {
     if (
       instruction.type == "TimelineAddEntries" &&
@@ -1063,12 +1065,14 @@ function timelineExtractor(timelineData) {
     ) {
       // ulog("Adding Media Grid Entries...")
       pushTweetsBundle(instruction.entries[0].content.items);
+      hasPushedTweets = true;
     } else if (
       instruction.type == "TimelineAddToModule" &&
       instruction.moduleEntryId.startsWith("profile-grid-")
     ) {
       // ulog("Adding Media Grid Update Entries...")
       pushTweetsBundle(instruction.moduleItems);
+      hasPushedTweets = true;
     } else if (instruction.type == "TimelineAddEntries") {
       // ulog("Adding Common timeline entries...")
       // ulog(instruction.entries)
@@ -1078,10 +1082,16 @@ function timelineExtractor(timelineData) {
         instruction.entries[0].entryId.startsWith("cursor-") &&
         instruction.entries[1].entryId.startsWith("cursor-")
       ) {
-        tweebGlobalAdded = 0;
+        if (!hasPushedTweets) {
+          ulog("Found blank cursor");
+          tweebGlobalAdded = 0;
+        }
         // do nothing for blank cursors
       } else if (instruction.entries.length == 0) {
-      } else pushTweetsBundle(instruction.entries);
+      } else {
+        pushTweetsBundle(instruction.entries);
+        hasPushedTweets = true;
+      }
     }
   });
 }
@@ -1147,7 +1157,6 @@ function pushTweetsBundle(entries) {
 
 function writeTweetStore(newTweets) {
   GM_setValue(`tweeb-Bundle-${Date.now()}`, JSON.stringify(newTweets));
-  // cleanupStore();
 }
 
 function cleanupStore() {
@@ -1156,7 +1165,7 @@ function cleanupStore() {
       return m.startsWith("tweeb-Bundle") || m.startsWith("tweeb-BatchBundle");
     })
     .sort();
-  if (tweebKeys.length >= 50) {
+  if (tweebKeys.length >= 10) {
     // localStorage lock so that 2 cleanup operations can't happen at the same time.
     if (GM_getValue("cleanupLock")) return;
     GM_setValue("cleanupLock", "1");
@@ -1171,7 +1180,6 @@ function cleanupStore() {
       GM_deleteValue(tweebBundleKey);
     });
     GM_setValue(`tweeb-BatchBundle-${Date.now()}`, JSON.stringify(bigBundle));
-    GM_;
     GM_deleteValue("cleanupLock");
   }
 }
@@ -1201,6 +1209,10 @@ function wipeTweebStore() {
 }
 
 function getAllTweebStore() {
+  alert("Downloading Archive. This might take a while due to cleanup");
+
+  cleanupStore(); // Probably fine to execute cleanup storage here since you only download your archive ever so frequently.
+
   var bigBundle = {};
   // Sort by time
   const tweebKeys = GM_listValues()
@@ -1242,7 +1254,7 @@ function getRealTweetObject(entryItem) {
       if (entryItem.item.itemContent)
         if (entryItem.item.itemContent.tweet_results.result.tweet)
           return entryItem.item.itemContent.tweet_results.result.tweet;
-        return entryItem.item.itemContent.tweet_results.result;
+      return entryItem.item.itemContent.tweet_results.result;
     }
   } else if (
     entryItem.result &&
@@ -1358,14 +1370,17 @@ function solveTweet(tweetItem) {
   if (tweetObject.__typename && tweetObject.__typename.includes("Tombstone"))
     return null;
   var userCore = null;
-  if (!tweetObject.core)
-    ulog("Core result not found.",tweetObject, tweetItem);
+  if (!tweetObject.core) ulog("Core result not found.", tweetObject, tweetItem);
   // Can be temporal (A tweet being deleted before being marked as tombstone'd.)
   if (tweetObject.core.user_results) {
     userCore = tweetObject.core.user_results.result;
   }
   var tweetContent = tweetObject.legacy;
   var simpleTweet = {};
+  if (!tweetContent && tweetObject) {
+    ulog("Tweet is in an unknown state.", tweetObject, tweetItem);
+    return null;
+  }
   if (tweetContent.retweeted_status_result) {
     simpleTweet = solveTweet(tweetContent.retweeted_status_result);
     if (simpleTweet == null) {
@@ -1477,6 +1492,10 @@ function extractTweetData(entries) {
   return allTweetsWithMedia;
 }
 
+/*
+  Xhook: Via regular twitter.
+*/
+
 function xhook_hook(request, response) {
   const u = new URL(request.url);
   if (
@@ -1518,6 +1537,133 @@ function xhook_hook(request, response) {
   }
   return response;
 }
+
+const XHookBlock = `<a href="#none" id="tweebDL" aria-label="Download Media" role="link"
+        class="css-175oi2r r-6koalj r-eqz5dr r-16y2uox r-1habvwh r-cnw61z r-13qz1uu r-1ny4l3l r-1loqt21">
+        <div class="css-175oi2r r-sdzlij r-dnmrzs r-1awozwy r-18u37iz r-1777fci r-xyw6el r-o7ynqc r-6416eg" style="padding:5px;">
+            <div dir="ltr"
+                class="css-146c3p1 r-dnmrzs r-1udh08x r-3s2u2q r-bcqeeo r-1ttztb7 r-qvutc0 r-37j5jr r-adyw6z r-135wba7 r-16dba41 r-dlybji r-nazi8o"
+                style="text-overflow: unset; color: rgb(231, 233, 234);"><span
+                    class="css-1jxf684 r-bcqeeo r-1ttztb7 r-qvutc0 r-poiln3" style="text-overflow: unset;">[DL Tweets] Session</span>
+            </div>
+        </div>
+    </a><a href="#none" id="tweebArchive" aria-label="Download Media" role="link"
+        class="css-175oi2r r-6koalj r-eqz5dr r-16y2uox r-1habvwh r-cnw61z r-13qz1uu r-1ny4l3l r-1loqt21">
+        <div class="css-175oi2r r-sdzlij r-dnmrzs r-1awozwy r-18u37iz r-1777fci r-xyw6el r-o7ynqc r-6416eg" style="padding:5px;">
+            <div dir="ltr"
+                class="css-146c3p1 r-dnmrzs r-1udh08x r-3s2u2q r-bcqeeo r-1ttztb7 r-qvutc0 r-37j5jr r-adyw6z r-135wba7 r-16dba41 r-dlybji r-nazi8o"
+                style="text-overflow: unset; color: rgb(231, 233, 234);"><span
+                    class="css-1jxf684 r-bcqeeo r-1ttztb7 r-qvutc0 r-poiln3" style="text-overflow: unset;">[DL Tweets] Archive</span>
+            </div>
+        </div>
+    </a><a href="#none" id="tweebWipe" aria-label="Download Media" role="link"
+        class="css-175oi2r r-6koalj r-eqz5dr r-16y2uox r-1habvwh r-cnw61z r-13qz1uu r-1ny4l3l r-1loqt21">
+        <div class="css-175oi2r r-sdzlij r-dnmrzs r-1awozwy r-18u37iz r-1777fci r-xyw6el r-o7ynqc r-6416eg" style="padding:5px;">
+            <div dir="ltr"
+                class="css-146c3p1 r-dnmrzs r-1udh08x r-3s2u2q r-bcqeeo r-1ttztb7 r-qvutc0 r-37j5jr r-adyw6z r-135wba7 r-16dba41 r-dlybji r-nazi8o"
+                style="text-overflow: unset; color: rgb(231, 233, 234);"><span
+                    class="css-1jxf684 r-bcqeeo r-1ttztb7 r-qvutc0 r-poiln3" style="text-overflow: unset;">Wipe Session & Archive</span>
+            </div>
+        </div>
+    </a><a href="#none" id="tweebScroll" aria-label="Toggle AutoScroll" role="link"
+        class="css-175oi2r r-6koalj r-eqz5dr r-16y2uox r-1habvwh r-cnw61z r-13qz1uu r-1ny4l3l r-1loqt21">
+        <div class="css-175oi2r r-sdzlij r-dnmrzs r-1awozwy r-18u37iz r-1777fci r-xyw6el r-o7ynqc r-6416eg" style="padding:5px;">
+            <div dir="ltr"
+                class="css-146c3p1 r-dnmrzs r-1udh08x r-3s2u2q r-bcqeeo r-1ttztb7 r-qvutc0 r-37j5jr r-adyw6z r-135wba7 r-16dba41 r-dlybji r-nazi8o"
+                style="text-overflow: unset; color: rgb(231, 233, 234);"><span
+                    class="css-1jxf684 r-bcqeeo r-1ttztb7 r-qvutc0 r-poiln3" style="text-overflow: unset;">Auto Scroll</span>
+            </div>
+        </div>
+    </a><a href="#none" id="tweebScrollRef" aria-label="Toggle AutoScroll With Reference" role="link"
+        class="css-175oi2r r-6koalj r-eqz5dr r-16y2uox r-1habvwh r-cnw61z r-13qz1uu r-1ny4l3l r-1loqt21">
+        <div class="css-175oi2r r-sdzlij r-dnmrzs r-1awozwy r-18u37iz r-1777fci r-xyw6el r-o7ynqc r-6416eg" style="padding:5px;">
+            <div dir="ltr"
+                class="css-146c3p1 r-dnmrzs r-1udh08x r-3s2u2q r-bcqeeo r-1ttztb7 r-qvutc0 r-37j5jr r-adyw6z r-135wba7 r-16dba41 r-dlybji r-nazi8o"
+                style="text-overflow: unset; color: rgb(231, 233, 234);"><span
+                    class="css-1jxf684 r-bcqeeo r-1ttztb7 r-qvutc0 r-poiln3" style="text-overflow: unset;">Auto Scroll [R]</span>
+            </div>
+        </div>
+    </a>`;
+
+var XHookNavElement = null;
+
+var XHookBtnElementcatcher = new MutationObserver(function (mutations) {
+  for (const mutation of mutations) {
+    // ulog("Mutation updated");
+    // console.log(mutation);
+    if (mutation.type != "childList") continue;
+    if (
+      mutation.target.querySelector("[aria-label='More menu items']") &&
+      !XHookNavElement
+    ) {
+      XHookNavElement = mutation.target;
+      ulog("Found target");
+      XHookBtnElementcatcher.disconnect();
+      const moreTarget = mutation.target.querySelector(
+        "[aria-label='More menu items']"
+      ).parentNode;
+      moreTarget.insertAdjacentHTML("beforeend", XHookBlock);
+      document.querySelector("#tweebDL").addEventListener("click", function () {
+        unsafeWindow.TweebDownload();
+      });
+      document
+        .querySelector("#tweebArchive")
+        .addEventListener("click", function () {
+          unsafeWindow.TweebArchive();
+        });
+      document
+        .querySelector("#tweebWipe")
+        .addEventListener("click", function () {
+          unsafeWindow.TweebWipeArchive();
+        });
+      document
+        .querySelector("#tweebScroll")
+        .addEventListener("click", function () {
+          unsafeWindow.TweebScroll();
+        });
+      document
+        .querySelector("#tweebScrollRef")
+        .addEventListener("click", function () {
+          unsafeWindow.TweebScrollWRef();
+        });
+    }
+  }
+});
+
+/*
+  Solver via OldTwitter
+*/
+
+var OTTimelineObserver = new MutationObserver(function (mutations) {
+  ulog("Observed timelinechange", mutations);
+});
+
+var OTBtnElementcatcher = new MutationObserver(function (mutations) {
+  for (const mutation of mutations) {
+    // ulog("Mutation updated", mutations);
+    // console.log(mutation);
+    // if (mutation.type != "childList") continue;
+
+    if (mutation.addedNodes) {
+      mutation.addedNodes.forEach((m) => {
+        if (m.id == "injected-body" && m.querySelector("#timeline")) {
+          OTTimelineObserver.observe(m.querySelector("#timeline"), {
+            childList: true,
+            subtree: true,
+          });
+
+          OTBtnElementcatcher.disconnect();
+        }
+      });
+    }
+  }
+});
+
+function onNodeAdded(params) {}
+
+/*
+  Main functions.
+*/
 
 (function () {
   "use strict";
@@ -1678,103 +1824,17 @@ function xhook_hook(request, response) {
   unsafeWindow.TweebArchiveDebug = debugStorage;
 
   // [Util] New Twitter: Download button
-  const downloadHref = `<a href="#none" id="tweebDL" aria-label="Download Media" role="link"
-        class="css-175oi2r r-6koalj r-eqz5dr r-16y2uox r-1habvwh r-cnw61z r-13qz1uu r-1ny4l3l r-1loqt21">
-        <div class="css-175oi2r r-sdzlij r-dnmrzs r-1awozwy r-18u37iz r-1777fci r-xyw6el r-o7ynqc r-6416eg" style="padding:5px;">
-            <div dir="ltr"
-                class="css-146c3p1 r-dnmrzs r-1udh08x r-3s2u2q r-bcqeeo r-1ttztb7 r-qvutc0 r-37j5jr r-adyw6z r-135wba7 r-16dba41 r-dlybji r-nazi8o"
-                style="text-overflow: unset; color: rgb(231, 233, 234);"><span
-                    class="css-1jxf684 r-bcqeeo r-1ttztb7 r-qvutc0 r-poiln3" style="text-overflow: unset;">[DL Tweets] Session</span>
-            </div>
-        </div>
-    </a><a href="#none" id="tweebArchive" aria-label="Download Media" role="link"
-        class="css-175oi2r r-6koalj r-eqz5dr r-16y2uox r-1habvwh r-cnw61z r-13qz1uu r-1ny4l3l r-1loqt21">
-        <div class="css-175oi2r r-sdzlij r-dnmrzs r-1awozwy r-18u37iz r-1777fci r-xyw6el r-o7ynqc r-6416eg" style="padding:5px;">
-            <div dir="ltr"
-                class="css-146c3p1 r-dnmrzs r-1udh08x r-3s2u2q r-bcqeeo r-1ttztb7 r-qvutc0 r-37j5jr r-adyw6z r-135wba7 r-16dba41 r-dlybji r-nazi8o"
-                style="text-overflow: unset; color: rgb(231, 233, 234);"><span
-                    class="css-1jxf684 r-bcqeeo r-1ttztb7 r-qvutc0 r-poiln3" style="text-overflow: unset;">[DL Tweets] Archive</span>
-            </div>
-        </div>
-    </a><a href="#none" id="tweebWipe" aria-label="Download Media" role="link"
-        class="css-175oi2r r-6koalj r-eqz5dr r-16y2uox r-1habvwh r-cnw61z r-13qz1uu r-1ny4l3l r-1loqt21">
-        <div class="css-175oi2r r-sdzlij r-dnmrzs r-1awozwy r-18u37iz r-1777fci r-xyw6el r-o7ynqc r-6416eg" style="padding:5px;">
-            <div dir="ltr"
-                class="css-146c3p1 r-dnmrzs r-1udh08x r-3s2u2q r-bcqeeo r-1ttztb7 r-qvutc0 r-37j5jr r-adyw6z r-135wba7 r-16dba41 r-dlybji r-nazi8o"
-                style="text-overflow: unset; color: rgb(231, 233, 234);"><span
-                    class="css-1jxf684 r-bcqeeo r-1ttztb7 r-qvutc0 r-poiln3" style="text-overflow: unset;">Wipe Session & Archive</span>
-            </div>
-        </div>
-    </a><a href="#none" id="tweebScroll" aria-label="Toggle AutoScroll" role="link"
-        class="css-175oi2r r-6koalj r-eqz5dr r-16y2uox r-1habvwh r-cnw61z r-13qz1uu r-1ny4l3l r-1loqt21">
-        <div class="css-175oi2r r-sdzlij r-dnmrzs r-1awozwy r-18u37iz r-1777fci r-xyw6el r-o7ynqc r-6416eg" style="padding:5px;">
-            <div dir="ltr"
-                class="css-146c3p1 r-dnmrzs r-1udh08x r-3s2u2q r-bcqeeo r-1ttztb7 r-qvutc0 r-37j5jr r-adyw6z r-135wba7 r-16dba41 r-dlybji r-nazi8o"
-                style="text-overflow: unset; color: rgb(231, 233, 234);"><span
-                    class="css-1jxf684 r-bcqeeo r-1ttztb7 r-qvutc0 r-poiln3" style="text-overflow: unset;">Auto Scroll</span>
-            </div>
-        </div>
-    </a><a href="#none" id="tweebScrollRef" aria-label="Toggle AutoScroll With Reference" role="link"
-        class="css-175oi2r r-6koalj r-eqz5dr r-16y2uox r-1habvwh r-cnw61z r-13qz1uu r-1ny4l3l r-1loqt21">
-        <div class="css-175oi2r r-sdzlij r-dnmrzs r-1awozwy r-18u37iz r-1777fci r-xyw6el r-o7ynqc r-6416eg" style="padding:5px;">
-            <div dir="ltr"
-                class="css-146c3p1 r-dnmrzs r-1udh08x r-3s2u2q r-bcqeeo r-1ttztb7 r-qvutc0 r-37j5jr r-adyw6z r-135wba7 r-16dba41 r-dlybji r-nazi8o"
-                style="text-overflow: unset; color: rgb(231, 233, 234);"><span
-                    class="css-1jxf684 r-bcqeeo r-1ttztb7 r-qvutc0 r-poiln3" style="text-overflow: unset;">Auto Scroll [R]</span>
-            </div>
-        </div>
-    </a>`;
-  var navElement = null;
-  var downloadBtnElementcatcher = new MutationObserver(function (mutations) {
-    for (const mutation of mutations) {
-      // ulog("Mutation updated");
-      // console.log(mutation);
-      if (mutation.type != "childList") continue;
-      if (
-        mutation.target.querySelector("[aria-label='More menu items']") &&
-        !navElement
-      ) {
-        navElement = mutation.target;
-        ulog("Found target");
-        downloadBtnElementcatcher.disconnect();
-        const moreTarget = mutation.target.querySelector(
-          "[aria-label='More menu items']"
-        ).parentNode;
-        moreTarget.insertAdjacentHTML("beforeend", downloadHref);
-        document
-          .querySelector("#tweebDL")
-          .addEventListener("click", function () {
-            unsafeWindow.TweebDownload();
-          });
-        document
-          .querySelector("#tweebArchive")
-          .addEventListener("click", function () {
-            unsafeWindow.TweebArchive();
-          });
-        document
-          .querySelector("#tweebWipe")
-          .addEventListener("click", function () {
-            unsafeWindow.TweebWipeArchive();
-          });
-        document
-          .querySelector("#tweebScroll")
-          .addEventListener("click", function () {
-            unsafeWindow.TweebScroll();
-          });
-        document
-          .querySelector("#tweebScrollRef")
-          .addEventListener("click", function () {
-            unsafeWindow.TweebScrollWRef();
-          });
-      }
-    }
-  });
 
   ulog("Enabling Download button observer.");
   if (sessionTweetStore === undefined) {
     sessionTweetStore = {};
   }
-  downloadBtnElementcatcher.observe(document, {
+  XHookBtnElementcatcher.observe(document, {
+    childList: true,
+    subtree: true,
+  });
+
+  OTBtnElementcatcher.observe(document, {
     childList: true,
     subtree: true,
   });
@@ -1801,12 +1861,21 @@ function xhook_hook(request, response) {
         .querySelector("#timeline > div:nth-last-child(1)")
         .scrollIntoViewIfNeeded();
     }
-
+    if (tweebGlobalAdded == 0) {
+      alert("Scroll Finished. No more new tweets detected.");
+      clearInterval(scrollData[0]);
+        scrollData[0] = null;
+        scrollData[3] = 0;
+    }
     if (unsafeWindow.scrollY === scrollData[2]) {
       if (scrollData[1] > scrollData[3]) {
         scrollData[3]++;
       } else {
-        ulog("Scroll locked. Giving up...");
+        ulog(
+          "Scroll locked. Giving up...",
+          tweebGlobalAdded,
+          unsafeWindow.scrollY === scrollData[2]
+        );
         alert("Scroll Finished.");
         clearInterval(scrollData[0]);
         scrollData[0] = null;
