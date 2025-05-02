@@ -1631,35 +1631,12 @@ var XHookBtnElementcatcher = new MutationObserver(function (mutations) {
 });
 
 /*
-  Solver via OldTwitter
+  Custom /index solver
 */
 
-var OTTimelineObserver = new MutationObserver(function (mutations) {
-  ulog("Observed timelinechange", mutations);
-});
-
-var OTBtnElementcatcher = new MutationObserver(function (mutations) {
-  for (const mutation of mutations) {
-    // ulog("Mutation updated", mutations);
-    // console.log(mutation);
-    // if (mutation.type != "childList") continue;
-
-    if (mutation.addedNodes) {
-      mutation.addedNodes.forEach((m) => {
-        if (m.id == "injected-body" && m.querySelector("#timeline")) {
-          OTTimelineObserver.observe(m.querySelector("#timeline"), {
-            childList: true,
-            subtree: true,
-          });
-
-          OTBtnElementcatcher.disconnect();
-        }
-      });
-    }
-  }
-});
-
-function onNodeAdded(params) {}
+function name(params) {
+  
+}
 
 /*
   Main functions.
@@ -1830,11 +1807,6 @@ function onNodeAdded(params) {}
     sessionTweetStore = {};
   }
   XHookBtnElementcatcher.observe(document, {
-    childList: true,
-    subtree: true,
-  });
-
-  OTBtnElementcatcher.observe(document, {
     childList: true,
     subtree: true,
   });
