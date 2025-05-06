@@ -14,7 +14,7 @@
 // @grant        GM_getValue
 // @grant        GM_deleteValue
 // @grant        GM_listValues
-
+// @require      https://cdnjs.cloudflare.com/ajax/libs/humanize-duration/3.32.1/humanize-duration.min.js
 // @run-at document-start
 // ==/UserScript==
 
@@ -1220,7 +1220,7 @@ function getAllTweebStore() {
       return m.startsWith("tweeb-Bundle") || m.startsWith("tweeb-BatchBundle");
     })
     .sort();
-  ulog(tweebKeys);
+  // ulog(tweebKeys);
   tweebKeys.forEach((tweebBundleKey) => {
     const partialBundle = JSON.parse(GM_getValue(tweebBundleKey));
     // ulog(partialBundle);
@@ -1247,6 +1247,10 @@ function getRealTweetObject(entryItem) {
       if (entryItem.item) {
         baseentry = entryItem.item;
       } else if (entryItem.content) baseentry = entryItem.content;
+      if (!baseentry.itemContent.tweet_results.result) {
+        ulog("tweet_results.result is null?", baseentry.itemContent);
+        return null;
+      }
       if (baseentry.itemContent.tweet_results.result.tweet)
         return baseentry.itemContent.tweet_results.result.tweet;
       return baseentry.itemContent.tweet_results.result;
@@ -1283,13 +1287,13 @@ function flattenTweetDetail(instructionEntries) {
       (entry.entryId.startsWith("home-conversation-") &&
         !entry.entryId.includes("-tweet-")) ||
       (entry.entryId.startsWith("profile-conversation-") &&
+        !entry.entryId.includes("-tweet-")) ||
+      (entry.entryId.startsWith("tweetdetailrelatedtweets-") &&
         !entry.entryId.includes("-tweet-"))
     ) {
       if (entry.content) {
         tweets.push(...flattenTweetDetail(entry.content.items));
       }
-      // else if (entry.item.)
-      // ulog()
     } else if (
       entry.entryId.startsWith("conversationthread-") &&
       entry.entryId.includes("-tweet-")
@@ -1359,7 +1363,6 @@ function solveUserObject(coreResult) {
  * @returns null if no tweetObject is found, a object if a simplified tweet object can be constructed
  */
 function solveTweet(tweetItem) {
-  // ulog(tweetItem);
   const tweetObject = getRealTweetObject(tweetItem);
 
   if (tweetObject == null) {
@@ -1634,9 +1637,7 @@ var XHookBtnElementcatcher = new MutationObserver(function (mutations) {
   Custom /index solver
 */
 
-function name(params) {
-  
-}
+function name(params) {}
 
 /*
   Main functions.
@@ -1644,7 +1645,7 @@ function name(params) {
 
 (function () {
   "use strict";
-
+  ulog("Injecting xhooks...");
   xhook.after(xhook_hook);
   xhook.before(function (request) {
     const u = new URL(request.url);
@@ -1686,6 +1687,7 @@ function name(params) {
       request.url = u.toString();
     }
   });
+  ulog("xhooks done! Preparing other functions...");
   // [Util] Any Twitter: Count total media
   function TweebCountMedia() {
     var totalMedia = 0;
@@ -1836,8 +1838,8 @@ function name(params) {
     if (tweebGlobalAdded == 0) {
       alert("Scroll Finished. No more new tweets detected.");
       clearInterval(scrollData[0]);
-        scrollData[0] = null;
-        scrollData[3] = 0;
+      scrollData[0] = null;
+      scrollData[3] = 0;
     }
     if (unsafeWindow.scrollY === scrollData[2]) {
       if (scrollData[1] > scrollData[3]) {
@@ -1871,4 +1873,5 @@ function name(params) {
   unsafeWindow.TweebScroll = DoomScroller;
   // window.TweebIds = tweetIds;
   unsafeWindow.TweebScrollWRef = TweebScrollWithReference;
+  ulog("Ready.");
 })();
