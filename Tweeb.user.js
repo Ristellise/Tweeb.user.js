@@ -978,7 +978,8 @@ function yeetGrok(entry) {
  * @param {object} timelineData The timeline data
  * @returns
  */
-function timelineExtractor(timelineData) {
+function timelineExtractor(timelineData, grokSkip) {
+  grokSkip = grokSkip || false;
   var instructions = null;
   if (timelineData.data.user) {
     if (timelineData.data.user.result.timeline_v2) {
@@ -1036,18 +1037,20 @@ function timelineExtractor(timelineData) {
         return !entry.entryId.startsWith("promoted");
       });
       // Remove grok.
-      instruction.entries.forEach((entry) => {
-        if (entry.entryId.startsWith("conversationthread-")) {
-          entry.content.items.forEach((subEntry) => {
-            if (subEntry.entryId.includes("-tweet-")) {
-              subEntry = yeetGrok(subEntry);
-            }
-          });
-          // Yes, all 3 different methods.
-        } else if (entry.entryId.startsWith("tweet-")) {
-          entry = yeetGrok(entry);
-        }
-      });
+      if (!grokSkip) {
+        instruction.entries.forEach((entry) => {
+          if (entry.entryId.startsWith("conversationthread-")) {
+            entry.content.items.forEach((subEntry) => {
+              if (subEntry.entryId.includes("-tweet-")) {
+                subEntry = yeetGrok(subEntry);
+              }
+            });
+            // Yes, all 3 different methods.
+          } else if (entry.entryId.startsWith("tweet-")) {
+            entry = yeetGrok(entry);
+          }
+        });
+      }
       instruction.entries = cleanedEntries;
     }
     newInstructions.push(instruction);
@@ -1743,7 +1746,7 @@ function on_old_twitter_message(params) {
     pathName.endsWith("UserMedia") ||
     pathName.endsWith("TweetDetail")
   ) {
-    timelineExtractor(params.data.body);
+    timelineExtractor(params.data.body, true);
   }
 }
 
@@ -1751,7 +1754,7 @@ function hook_old_twitter_ext() {
   const selector = "injected-body";
   var timelineNode = null;
 
-  var seenMutations = 75;
+  var seenMutations = 100;
   var OldTwitterBodyListener = new MutationObserver(function (mutations) {
     for (const mutation of mutations) {
       ulog("Mutation updated");

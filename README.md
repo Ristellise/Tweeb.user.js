@@ -28,7 +28,8 @@ Tweeb.user.js intercepts requests and reads the payload directly. Common functio
 
 ## Potentially support...
 
-- OldTwitter: As it calls twitter apis within the extension, xhook can't exactly hook into it. Mmm not sure in a sense to fix it?
+- ~~OldTwitter: As it calls twitter apis within the extension, xhook can't exactly hook into it. Mmm not sure in a sense to fix it?~~
+  - OldTwitter as of late exposes calls to other extensions via postMessage, we use that to hook in.
 
 
 ## License
