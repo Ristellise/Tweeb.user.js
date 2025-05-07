@@ -1588,64 +1588,7 @@ const XHookBlock = `<a href="#none" id="tweebDL" aria-label="Download Media" rol
         </div>
     </a>`;
 
-var XHookNavElement = null;
-
-var XHookBtnElementcatcher = new MutationObserver(function (mutations) {
-  for (const mutation of mutations) {
-    // ulog("Mutation updated");
-    // console.log(mutation);
-    if (mutation.type != "childList") continue;
-    if (
-      mutation.target.querySelector("[aria-label='More menu items']") &&
-      !XHookNavElement
-    ) {
-      XHookNavElement = mutation.target;
-      ulog("Found target");
-      XHookBtnElementcatcher.disconnect();
-      const moreTarget = mutation.target.querySelector(
-        "[aria-label='More menu items']"
-      ).parentNode;
-      moreTarget.insertAdjacentHTML("beforeend", XHookBlock);
-      document.querySelector("#tweebDL").addEventListener("click", function () {
-        unsafeWindow.TweebDownload();
-      });
-      document
-        .querySelector("#tweebArchive")
-        .addEventListener("click", function () {
-          unsafeWindow.TweebArchive();
-        });
-      document
-        .querySelector("#tweebWipe")
-        .addEventListener("click", function () {
-          unsafeWindow.TweebWipeArchive();
-        });
-      document
-        .querySelector("#tweebScroll")
-        .addEventListener("click", function () {
-          unsafeWindow.TweebScroll();
-        });
-      document
-        .querySelector("#tweebScrollRef")
-        .addEventListener("click", function () {
-          unsafeWindow.TweebScrollWRef();
-        });
-    }
-  }
-});
-
-/*
-  Custom /index solver
-*/
-
-function name(params) {}
-
-/*
-  Main functions.
-*/
-
-(function () {
-  "use strict";
-  ulog("Injecting xhooks...");
+function hook_regular_twitter() {
   xhook.after(xhook_hook);
   xhook.before(function (request) {
     const u = new URL(request.url);
@@ -1687,115 +1630,380 @@ function name(params) {}
       request.url = u.toString();
     }
   });
-  ulog("xhooks done! Preparing other functions...");
-  // [Util] Any Twitter: Count total media
-  function TweebCountMedia() {
-    var totalMedia = 0;
-    Object.keys(sessionTweetStore).forEach((tweetKey) => {
-      if (sessionTweetStore[tweetKey].media)
-        totalMedia += sessionTweetStore[tweetKey].media.length;
-    });
-    ulog("Media Items:", totalMedia);
+
+  var XHookNavElement = null;
+
+  var XHookBtnElementcatcher = new MutationObserver(function (mutations) {
+    for (const mutation of mutations) {
+      // ulog("Mutation updated");
+      // console.log(mutation);
+      if (mutation.type != "childList") continue;
+      if (
+        mutation.target.querySelector("[aria-label='More menu items']") &&
+        !XHookNavElement
+      ) {
+        XHookNavElement = mutation.target;
+        ulog("Found target");
+        XHookBtnElementcatcher.disconnect();
+        const moreTarget = mutation.target.querySelector(
+          "[aria-label='More menu items']"
+        ).parentNode;
+        moreTarget.insertAdjacentHTML("beforeend", XHookBlock);
+        document
+          .querySelector("#tweebDL")
+          .addEventListener("click", function () {
+            unsafeWindow.TweebDownload();
+          });
+        document
+          .querySelector("#tweebArchive")
+          .addEventListener("click", function () {
+            unsafeWindow.TweebArchive();
+          });
+        document
+          .querySelector("#tweebWipe")
+          .addEventListener("click", function () {
+            unsafeWindow.TweebWipeArchive();
+          });
+        document
+          .querySelector("#tweebScroll")
+          .addEventListener("click", function () {
+            unsafeWindow.TweebScroll();
+          });
+        document
+          .querySelector("#tweebScrollRef")
+          .addEventListener("click", function () {
+            unsafeWindow.TweebScrollWRef();
+          });
+      }
+    }
+  });
+
+  XHookBtnElementcatcher.observe(document, {
+    childList: true,
+    subtree: true,
+  });
+}
+
+/*
+  OldTwitter
+*/
+
+const versioning = GM_info.script.version;
+
+const oldTwitterButtons = `<div>
+    <span><a href="https://github.com/Ristellise/Tweeb.user.js">Tweeb.user.js</a> [OldTwitter Hook]
+    v${versioning}</span>.<br>
+    <a href="#none" class="tweebDL">Download Session</a><br>
+    <a href="#none" class="tweebArchive">Download Archive</a><br>
+    <a href="#none" class="tweebWipe">Wipe Archive</a><br>
+    <br>
+</div>`;
+
+/**
+ * Given a list of instructions, extracts and pushes tweets to the bundle.
+ * @param {array} entries
+ */
+function pushOldTwitterTweetsBundle(entries) {
+  if (sessionTweetStore === undefined) {
+    sessionTweetStore = {};
   }
-  unsafeWindow.TweebCount = TweebCountMedia;
 
-  function TweebScrollWithReference() {
-    var input = document.createElement("input");
-    input.type = "file";
-    input.accept = ".json";
-    let imageCheckInterval;
+  const seenIds = Object.keys(sessionTweetStore);
+  var timelineTweets = entries;
+  var filteredTweetIds = Object.keys(timelineTweets).filter(
+    (key) => !seenIds.includes(key)
+  );
+  var newTweets = {};
 
-    function startImageCheck(tweets) {
-      if (!tweets) {
-        console.warn("No images provided.");
+  for (let index = 0; index < filteredTweetIds.length; index++) {
+    const tweetId = filteredTweetIds[index];
+    newTweets[tweetId] = timelineTweets[tweetId];
+  }
+  sessionTweetStore = { ...sessionTweetStore, ...newTweets };
+
+  tweebGlobalAdded = Object.keys(newTweets).length;
+  ulog("[newPush]", "addedTweets", tweebGlobalAdded);
+  const timer = Date.now();
+  writeTweetStore(newTweets);
+  ulog(
+    "[OldTwitter]/[newPush]",
+    `Saved to store. Took: ${(Date.now() - timer) / 1000}s to complete.`
+  );
+}
+
+function on_old_twitter_message(params) {
+  if (params.data.type != "OLDTWITTER_REQUEST_LOAD") return;
+  const pathName = params.data.url;
+  if (
+    pathName.endsWith("HomeLatestTimeline") ||
+    pathName.endsWith("HomeTimeline") ||
+    pathName.endsWith("UserTweets") ||
+    pathName.endsWith("UserTweetsAndReplies") ||
+    pathName.endsWith("SearchTimeline") ||
+    pathName.endsWith("UserMedia") ||
+    pathName.endsWith("TweetDetail")
+  ) {
+    timelineExtractor(params.data.body);
+  }
+}
+
+function hook_old_twitter_ext() {
+  const selector = "injected-body";
+  var timelineNode = null;
+
+  var seenMutations = 75;
+  var OldTwitterBodyListener = new MutationObserver(function (mutations) {
+    for (const mutation of mutations) {
+      ulog("Mutation updated");
+      if (mutation.addedNodes) {
+        mutation.addedNodes.forEach((node) => {
+          if (node.nodeName == "BODY" && node.id == selector) {
+            timelineNode = node.querySelector("#timeline");
+            if (timelineNode) {
+              ulog("OldTwitter Timeline spotted. Hooking window listener");
+              OldTwitterBodyListener.disconnect();
+              unsafeWindow.addEventListener("message", on_old_twitter_message);
+
+              node
+                .querySelector("#about-left")
+                .insertAdjacentHTML("beforeend", oldTwitterButtons);
+              node
+                .querySelector("#about-right")
+                .insertAdjacentHTML("beforeend", oldTwitterButtons);
+              document
+                .querySelectorAll(
+                  "a.tweebDL, a.tweebArchive, a.tweebWipe, a.tweebScroll, a.tweebScrollRef"
+                )
+                .forEach((m) => {
+                  if (m.classList.contains("tweebDL")) {
+                    m.addEventListener("click", function () {
+                      unsafeWindow.TweebDownload();
+                    });
+                  } else if (m.classList.contains("tweebArchive")) {
+                    m.addEventListener("click", function () {
+                      unsafeWindow.TweebArchive();
+                    });
+                  } else if (m.classList.contains("tweebWipe")) {
+                    m.addEventListener("click", function () {
+                      unsafeWindow.TweebWipeArchive();
+                    });
+                  } else if (m.classList.contains("tweebScroll")) {
+                    m.addEventListener("click", function () {
+                      unsafeWindow.TweebScroll();
+                    });
+                  } else if (m.classList.contains("tweebScrollRef")) {
+                    m.addEventListener("click", function () {
+                      unsafeWindow.TweebScrollWRef();
+                    });
+                  }
+                });
+            }
+          }
+          seenMutations -= 1;
+        });
+      }
+    }
+    if (!timelineNode && seenMutations <= 0) {
+      ulog("No body change.");
+      OldTwitterBodyListener.disconnect();
+    }
+  });
+  OldTwitterBodyListener.observe(document, {
+    childList: true,
+    subtree: true,
+  });
+}
+
+/*
+  Main functions.
+*/
+
+/**
+ * Counts the total media present within the archive storage.
+ * @param null
+ * @returns null
+ */
+function TweebCountMedia() {
+  var totalMedia = 0;
+  Object.keys(sessionTweetStore).forEach((tweetKey) => {
+    if (sessionTweetStore[tweetKey].media)
+      totalMedia += sessionTweetStore[tweetKey].media.length;
+  });
+  ulog("Media Items:", totalMedia);
+}
+
+/**
+ * Scrolls the timeline with a reference file provided to stop at.
+ * @param null
+ * @returns null
+ */
+function TweebScrollWithReference() {
+  var input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".json";
+  let imageCheckInterval;
+
+  function startImageCheck(tweets) {
+    if (!tweets) {
+      console.warn("No images provided.");
+      return;
+    }
+    DoomScroller(); //start doomscroller
+    previousImageCount = Object.keys(tweets).length;
+    imageCheckInterval = setInterval(() => {
+      if (!sessionTweetStore) {
+        console.warn("sessionTweetStore is not defined yet.");
         return;
       }
-      DoomScroller(); //start doomscroller
-      previousImageCount = Object.keys(tweets).length;
-      imageCheckInterval = setInterval(() => {
-        if (!sessionTweetStore) {
-          console.warn("sessionTweetStore is not defined yet.");
-          return;
-        }
-        if (tweebGlobalAdded === 0) {
-          console.log("No new images detected. Stopping.");
-          clearInterval(scrollData[0]); // Stop DoomScroller
-          clearInterval(imageCheckInterval);
-          scrollData[0] = null;
-          alert("Scroll Finished.");
-        }
-      }, 500); // Check every 500ms
-    }
+      if (tweebGlobalAdded === 0) {
+        console.log("No new images detected. Stopping.");
+        clearInterval(scrollData[0]); // Stop DoomScroller
+        clearInterval(imageCheckInterval);
+        scrollData[0] = null;
+        alert("Scroll Finished.");
+      }
+    }, 500); // Check every 500ms
+  }
 
-    input.onchange = (e) => {
-      var file = e.target.files[0];
-      var reader = new FileReader();
-      reader.readAsText(file, "UTF-8");
+  input.onchange = (e) => {
+    var file = e.target.files[0];
+    var reader = new FileReader();
+    reader.readAsText(file, "UTF-8");
 
-      reader.onload = (readerEvent) => {
-        var content = readerEvent.target.result;
-        var includedTweebs;
+    reader.onload = (readerEvent) => {
+      var content = readerEvent.target.result;
+      var includedTweebs;
 
-        try {
-          includedTweebs = JSON.parse(content);
-        } catch (error) {
-          console.error("Error parsing JSON file:", error);
-          return;
-        }
-        // if (!window.TweebImages) {
-        //   window.TweebImages = {};
-        // }
-        pushExistingTweets(includedTweebs);
-        ulog(`Added ${tweebGlobalAdded} Inital medias`);
-        startImageCheck(sessionTweetStore);
-      };
+      try {
+        includedTweebs = JSON.parse(content);
+      } catch (error) {
+        console.error("Error parsing JSON file:", error);
+        return;
+      }
+      // if (!window.TweebImages) {
+      //   window.TweebImages = {};
+      // }
+      pushExistingTweets(includedTweebs);
+      ulog(`Added ${tweebGlobalAdded} Inital medias`);
+      startImageCheck(sessionTweetStore);
     };
+  };
 
-    input.click();
+  input.click();
+}
+
+/**
+ * Downloads current Session to a json file
+ * @param null
+ * @returns null
+ */
+function TweebDownload() {
+  var currentURL = new URL(document.URL);
+  var currentPage = currentURL.pathname;
+  // ulog(currentPage);
+  if (currentPage == "/home") {
+    currentPage = currentPage.substring(1);
+    currentPage = `${currentPage}.json`;
+  } else if (
+    currentPage.includes("/media") ||
+    currentPage.includes("/with_replies")
+  ) {
+    var fragement = currentPage.split("/");
+    currentPage = `${fragement[fragement.length - 1]}.json`;
+  } else if (currentPage.includes("/search")) {
+    var searchParam = currentURL.searchParams.get("q");
+    currentPage = `${searchParam}.json`;
+  } else {
+    currentPage = currentPage.substring(1);
+    currentPage = `${currentPage}.json`;
   }
-  // [Util] Any Twitter: Download function for media.
-  function TweebDownload() {
-    var currentURL = new URL(document.URL);
-    var currentPage = currentURL.pathname;
-    // ulog(currentPage);
-    if (currentPage == "/home") {
-      currentPage = currentPage.substring(1);
-      currentPage = `${currentPage}.json`;
-    } else if (
-      currentPage.includes("/media") ||
-      currentPage.includes("/with_replies")
-    ) {
-      var fragement = currentPage.split("/");
-      currentPage = `${fragement[fragement.length - 1]}.json`;
-    } else if (currentPage.includes("/search")) {
-      var searchParam = currentURL.searchParams.get("q");
-      currentPage = `${searchParam}.json`;
+  saveData(sessionTweetStore, currentPage);
+}
+
+function TweebDownloadArchive() {
+  ulog("Getting all archived tweets. This can take some time...");
+  saveData(
+    getAllTweebStore(),
+    `TweetUserScriptArchive-${Math.floor(Date.now() / 1000)}.json`
+  );
+}
+
+function TweebWipeArchive() {
+  if (
+    confirm(
+      "Delete *ALL* your saved tweets?\nThis is not reversible!\n(Includes current session and previously archived!)"
+    )
+  ) {
+    sessionTweetStore = {};
+    wipeTweebStore();
+    alert("Wiped All stored tweets!");
+  }
+}
+
+var scrollData = [null, 20, 0, 0];
+
+function scrollLoop() {
+  ulog("Scrolling Timeline...");
+  var originalTimeline = document.querySelector(
+    'div[aria-label~="Timeline:" i] > div > div:nth-last-child(1)'
+  );
+  if (originalTimeline !== null) {
+    document.querySelectorAll(
+      'div[aria-label~="Timeline:" i] > div > div'
+    ).style = "width:0%;";
+    var timelineHeightPx =
+      originalTimeline.parentElement.attributeStyleMap.get("min-height").value;
+    unsafeWindow.scrollTo(0, timelineHeightPx + 10 * 1000);
+    // originalTimeline.scrollIntoViewIfNeeded();
+  } else {
+    originalTimeline = document
+      .querySelector("#timeline > div:nth-last-child(1)")
+      .scrollIntoViewIfNeeded();
+  }
+  if (tweebGlobalAdded == 0) {
+    alert("Scroll Finished. No more new tweets detected.");
+    clearInterval(scrollData[0]);
+    scrollData[0] = null;
+    scrollData[3] = 0;
+  }
+  if (unsafeWindow.scrollY === scrollData[2]) {
+    if (scrollData[1] > scrollData[3]) {
+      scrollData[3]++;
     } else {
-      currentPage = currentPage.substring(1);
-      currentPage = `${currentPage}.json`;
+      ulog(
+        "Scroll locked. Giving up...",
+        tweebGlobalAdded,
+        unsafeWindow.scrollY === scrollData[2]
+      );
+      alert("Scroll Finished.");
+      clearInterval(scrollData[0]);
+      scrollData[0] = null;
+      scrollData[3] = 0;
     }
-    saveData(sessionTweetStore, currentPage);
+  } else {
+    scrollData[3] = 0;
   }
+  scrollData[2] = unsafeWindow.scrollY;
+}
 
-  function TweebDownloadArchive() {
-    ulog("Getting all archived tweets. This can take some time...");
-    saveData(
-      getAllTweebStore(),
-      `TweetUserScriptArchive-${Math.floor(Date.now() / 1000)}.json`
-    );
+function DoomScroller() {
+  if (scrollData[0]) {
+    clearInterval(scrollData[0]);
+    scrollData[0] = null;
+  } else {
+    scrollData[0] = setInterval(scrollLoop, 100);
   }
+}
 
-  function TweebWipeArchive() {
-    if (
-      confirm(
-        "Delete *ALL* your saved tweets?\nThis is not reversible!\n(This includes current session and previously archived!)"
-      )
-    ) {
-      sessionTweetStore = {};
-      wipeTweebStore();
-      alert("Wiped All stored tweets!");
-    }
-  }
+(function () {
+  "use strict";
+  ulog("Injecting xhooks...");
+  hook_regular_twitter();
+  hook_old_twitter_ext();
+  ulog("xhooks done! Preparing other functions...");
+
+  // [Util] Any Twitter: Count total media
+  unsafeWindow.TweebCount = TweebCountMedia;
 
   unsafeWindow.TweebDownload = TweebDownload;
   unsafeWindow.TweebArchive = TweebDownloadArchive;
@@ -1803,73 +2011,6 @@ function name(params) {}
   unsafeWindow.TweebArchiveDebug = debugStorage;
 
   // [Util] New Twitter: Download button
-
-  ulog("Enabling Download button observer.");
-  if (sessionTweetStore === undefined) {
-    sessionTweetStore = {};
-  }
-  XHookBtnElementcatcher.observe(document, {
-    childList: true,
-    subtree: true,
-  });
-
-  var scrollData = [null, 20, 0, 0];
-
-  function scrollLoop() {
-    ulog("Scrolling Timeline...");
-    var originalTimeline = document.querySelector(
-      'div[aria-label~="Timeline:" i] > div > div:nth-last-child(1)'
-    );
-    if (originalTimeline !== null) {
-      document.querySelectorAll(
-        'div[aria-label~="Timeline:" i] > div > div'
-      ).style = "width:0%;";
-      var timelineHeightPx =
-        originalTimeline.parentElement.attributeStyleMap.get(
-          "min-height"
-        ).value;
-      unsafeWindow.scrollTo(0, timelineHeightPx + 10 * 1000);
-      // originalTimeline.scrollIntoViewIfNeeded();
-    } else {
-      originalTimeline = document
-        .querySelector("#timeline > div:nth-last-child(1)")
-        .scrollIntoViewIfNeeded();
-    }
-    if (tweebGlobalAdded == 0) {
-      alert("Scroll Finished. No more new tweets detected.");
-      clearInterval(scrollData[0]);
-      scrollData[0] = null;
-      scrollData[3] = 0;
-    }
-    if (unsafeWindow.scrollY === scrollData[2]) {
-      if (scrollData[1] > scrollData[3]) {
-        scrollData[3]++;
-      } else {
-        ulog(
-          "Scroll locked. Giving up...",
-          tweebGlobalAdded,
-          unsafeWindow.scrollY === scrollData[2]
-        );
-        alert("Scroll Finished.");
-        clearInterval(scrollData[0]);
-        scrollData[0] = null;
-        scrollData[3] = 0;
-      }
-    } else {
-      scrollData[3] = 0;
-    }
-    scrollData[2] = unsafeWindow.scrollY;
-  }
-
-  function DoomScroller() {
-    if (scrollData[0]) {
-      clearInterval(scrollData[0]);
-      scrollData[0] = null;
-    } else {
-      scrollData[0] = setInterval(scrollLoop, 100);
-    }
-  }
-
   unsafeWindow.TweebScroll = DoomScroller;
   // window.TweebIds = tweetIds;
   unsafeWindow.TweebScrollWRef = TweebScrollWithReference;
