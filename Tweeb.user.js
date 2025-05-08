@@ -912,7 +912,7 @@ function uLogTimelineError(timelineType, ...args) {
 }
 
 /**
- * Attempt to remove grok buttons for a given entry
+ * Attempts to remove grok buttons for a given entry
  * @param {object} entry
  * @returns
  */
@@ -1693,50 +1693,24 @@ function hook_regular_twitter() {
 
 const versioning = GM_info.script.version;
 
-const oldTwitterButtons = `<div>
+const oldTwitterButtons = `<br><br><div>
     <span><a href="https://github.com/Ristellise/Tweeb.user.js">Tweeb.user.js</a> [OldTwitter Hook]
     v${versioning}</span>.<br>
     <a href="#none" class="tweebDL">Download Session</a><br>
     <a href="#none" class="tweebArchive">Download Archive</a><br>
-    <a href="#none" class="tweebWipe">Wipe Archive</a><br>
-    <br>
+    <a href="#none" class="tweebWipe">Wipe Archive</a>
 </div>`;
 
-/**
- * Given a list of instructions, extracts and pushes tweets to the bundle.
- * @param {array} entries
- */
-function pushOldTwitterTweetsBundle(entries) {
-  if (sessionTweetStore === undefined) {
-    sessionTweetStore = {};
-  }
-
-  const seenIds = Object.keys(sessionTweetStore);
-  var timelineTweets = entries;
-  var filteredTweetIds = Object.keys(timelineTweets).filter(
-    (key) => !seenIds.includes(key)
-  );
-  var newTweets = {};
-
-  for (let index = 0; index < filteredTweetIds.length; index++) {
-    const tweetId = filteredTweetIds[index];
-    newTweets[tweetId] = timelineTweets[tweetId];
-  }
-  sessionTweetStore = { ...sessionTweetStore, ...newTweets };
-
-  tweebGlobalAdded = Object.keys(newTweets).length;
-  ulog("[newPush]", "addedTweets", tweebGlobalAdded);
-  const timer = Date.now();
-  writeTweetStore(newTweets);
-  ulog(
-    "[OldTwitter]/[newPush]",
-    `Saved to store. Took: ${(Date.now() - timer) / 1000}s to complete.`
-  );
-}
+var OLD_TWITTER_HOOKED = false
 
 function on_old_twitter_message(params) {
   if (params.data.type != "OLDTWITTER_REQUEST_LOAD") return;
+  ulog('Detected OldTwitterMessage', params.data)
   const pathName = params.data.url;
+  if (!OLD_TWITTER_HOOKED) {
+    OLD_TWITTER_HOOKED = true;
+    hookOldTwitterTimelineData()
+  }
   if (
     pathName.endsWith("HomeLatestTimeline") ||
     pathName.endsWith("HomeTimeline") ||
@@ -1750,71 +1724,45 @@ function on_old_twitter_message(params) {
   }
 }
 
-function hook_old_twitter_ext() {
-  const selector = "injected-body";
-  var timelineNode = null;
-
-  var seenMutations = 100;
-  var OldTwitterBodyListener = new MutationObserver(function (mutations) {
-    for (const mutation of mutations) {
-      ulog("Mutation updated");
-      if (mutation.addedNodes) {
-        mutation.addedNodes.forEach((node) => {
-          if (node.nodeName == "BODY" && node.id == selector) {
-            timelineNode = node.querySelector("#timeline");
-            if (timelineNode) {
-              ulog("OldTwitter Timeline spotted. Hooking window listener");
-              OldTwitterBodyListener.disconnect();
-              unsafeWindow.addEventListener("message", on_old_twitter_message);
-
-              node
-                .querySelector("#about-left")
-                .insertAdjacentHTML("beforeend", oldTwitterButtons);
-              node
-                .querySelector("#about-right")
-                .insertAdjacentHTML("beforeend", oldTwitterButtons);
-              document
-                .querySelectorAll(
-                  "a.tweebDL, a.tweebArchive, a.tweebWipe, a.tweebScroll, a.tweebScrollRef"
-                )
-                .forEach((m) => {
-                  if (m.classList.contains("tweebDL")) {
-                    m.addEventListener("click", function () {
-                      unsafeWindow.TweebDownload();
-                    });
-                  } else if (m.classList.contains("tweebArchive")) {
-                    m.addEventListener("click", function () {
-                      unsafeWindow.TweebArchive();
-                    });
-                  } else if (m.classList.contains("tweebWipe")) {
-                    m.addEventListener("click", function () {
-                      unsafeWindow.TweebWipeArchive();
-                    });
-                  } else if (m.classList.contains("tweebScroll")) {
-                    m.addEventListener("click", function () {
-                      unsafeWindow.TweebScroll();
-                    });
-                  } else if (m.classList.contains("tweebScrollRef")) {
-                    m.addEventListener("click", function () {
-                      unsafeWindow.TweebScrollWRef();
-                    });
-                  }
-                });
-            }
-          }
-          seenMutations -= 1;
+function hookOldTwitterTimelineData() {
+  const node = document.querySelector("body#injected-body")
+  node
+    .querySelector("#about-left")
+    .insertAdjacentHTML("beforeend", oldTwitterButtons);
+  node
+    .querySelector("#about-right")
+    .insertAdjacentHTML("beforeend", oldTwitterButtons);
+  document
+    .querySelectorAll(
+      "a.tweebDL, a.tweebArchive, a.tweebWipe, a.tweebScroll, a.tweebScrollRef"
+    )
+    .forEach((m) => {
+      if (m.classList.contains("tweebDL")) {
+        m.addEventListener("click", function () {
+          unsafeWindow.TweebDownload();
+        });
+      } else if (m.classList.contains("tweebArchive")) {
+        m.addEventListener("click", function () {
+          unsafeWindow.TweebArchive();
+        });
+      } else if (m.classList.contains("tweebWipe")) {
+        m.addEventListener("click", function () {
+          unsafeWindow.TweebWipeArchive();
+        });
+      } else if (m.classList.contains("tweebScroll")) {
+        m.addEventListener("click", function () {
+          unsafeWindow.TweebScroll();
+        });
+      } else if (m.classList.contains("tweebScrollRef")) {
+        m.addEventListener("click", function () {
+          unsafeWindow.TweebScrollWRef();
         });
       }
-    }
-    if (!timelineNode && seenMutations <= 0) {
-      ulog("No body change.");
-      OldTwitterBodyListener.disconnect();
-    }
-  });
-  OldTwitterBodyListener.observe(document, {
-    childList: true,
-    subtree: true,
-  });
+    });
+}
+
+function hook_old_twitter_ext() {
+  unsafeWindow.addEventListener("message", on_old_twitter_message);
 }
 
 /*
