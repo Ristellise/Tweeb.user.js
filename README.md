@@ -13,8 +13,19 @@ Tweeb.user.js intercepts requests and reads the payload directly. Common functio
 `[DL Tweets] Session`: Downloads the tweets saved during the current session  
 `[DL Tweets] Archive`: Downloads all past archives  
 `Wipe Session & Archive`: Wipes ALL present and archived tweets. Confirmation is prompted.  
-`Auto Scroll`: Toggles Auto Scrolls until the page stops updated.  
-`Auto Scroll [R]`: Toggles Auto Scrolls with a json file (downloaded from session or archive) as reference.  
+`Auto Scroll`: Toggles Auto Scrolls until the page stops updated. (Unavailable with OldTwitter backend at the moment)  
+`Auto Scroll [R]`: Toggles Auto Scrolls with a json file (downloaded from session or archive) as reference. (Unavailable with OldTwitter backend at the moment)  
+
+## "Backends" / "Methods" / "Hooks"
+
+This script has 2 so called "backends" or hook methods. They are as follows:
+
+- `xhook` (aka. Default Backend): New Twitter / X's default method.
+- `sendMessage` (aka. OldTwitter Backend): Only enabled with OldTwitter Extension is used. xhook does not work for example.
+
+## `sendMessage` backend notes
+
+- grok removal is not enabled for `sendMessage` as no additional benefit is provided. 
 
 ## What does this script not do
 
@@ -25,12 +36,6 @@ Tweeb.user.js intercepts requests and reads the payload directly. Common functio
 [ ]: Enable (Specifically, **Optionally**) anonymous uploads of posts to a centralized server.
   - The structure is already there, just needs a way to upload and store.  
 - ~~Store tweets with GM_setValue~~ Done.
-
-## Potentially support...
-
-- ~~OldTwitter: As it calls twitter apis within the extension, xhook can't exactly hook into it. Mmm not sure in a sense to fix it?~~
-  - OldTwitter as of late exposes calls to other extensions via postMessage, we use that to hook in.
-
 
 ## License
 
