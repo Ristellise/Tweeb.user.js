@@ -1259,8 +1259,12 @@ function getRealTweetObject(entryItem) {
       return baseentry.itemContent.tweet_results.result;
     } else if (entryItem.entryId.includes("-tweet-")) {
       if (entryItem.item.itemContent)
-        if (entryItem.item.itemContent.tweet_results.result.tweet)
-          return entryItem.item.itemContent.tweet_results.result.tweet;
+        if (!entryItem.item.itemContent.tweet_results) {
+          ulog("entryItem.item.itemContent.tweet_results is null?", entryItem);
+          return null;
+        }
+      if (entryItem.item.itemContent.tweet_results.result.tweet)
+        return entryItem.item.itemContent.tweet_results.result.tweet;
       return entryItem.item.itemContent.tweet_results.result;
     }
   } else if (
@@ -1698,18 +1702,19 @@ const oldTwitterButtons = `<br><br><div>
     v${versioning}</span>.<br>
     <a href="#none" class="tweebDL">Download Session</a><br>
     <a href="#none" class="tweebArchive">Download Archive</a><br>
-    <a href="#none" class="tweebWipe">Wipe Archive</a>
+    <a href="#none" class="tweebScroll">Scroll Timeline</a><br>
+    <a href="#none" class="tweebWipe">Scroll Timeline with reference</a><br>
 </div>`;
 
-var OLD_TWITTER_HOOKED = false
+var OLD_TWITTER_HOOKED = false;
 
 function on_old_twitter_message(params) {
   if (params.data.type != "OLDTWITTER_REQUEST_LOAD") return;
-  ulog('Detected OldTwitterMessage', params.data)
+  ulog("Detected OldTwitterMessage", params.data);
   const pathName = params.data.url;
   if (!OLD_TWITTER_HOOKED) {
     OLD_TWITTER_HOOKED = true;
-    hookOldTwitterTimelineData()
+    hookOldTwitterTimelineData();
   }
   if (
     pathName.endsWith("HomeLatestTimeline") ||
@@ -1725,7 +1730,7 @@ function on_old_twitter_message(params) {
 }
 
 function hookOldTwitterTimelineData() {
-  const node = document.querySelector("body#injected-body")
+  const node = document.querySelector("body#injected-body");
   node
     .querySelector("#about-left")
     .insertAdjacentHTML("beforeend", oldTwitterButtons);
@@ -1893,6 +1898,23 @@ function TweebWipeArchive() {
 
 var scrollData = [null, 20, 0, 0];
 
+function alternativeOldTwitterScrollLoop() {
+  ulog("Scrolling Timeline...");
+  var loadMoreElement = document.querySelector("#load-more");
+  if (loadMoreElement) {
+    // XXX: Not very localizable.
+    if (loadMoreElement.innerHTML.toLowerCase() == "load more") {
+      loadMoreElement.click();
+    }
+  }
+  if (tweebGlobalAdded == 0) {
+    alert("Scroll Finished. No more new tweets detected.");
+    clearInterval(scrollData[0]);
+    scrollData[0] = null;
+    scrollData[3] = 0;
+  }
+}
+
 function scrollLoop() {
   ulog("Scrolling Timeline...");
   var originalTimeline = document.querySelector(
@@ -1942,7 +1964,9 @@ function DoomScroller() {
     clearInterval(scrollData[0]);
     scrollData[0] = null;
   } else {
-    scrollData[0] = setInterval(scrollLoop, 100);
+    if (document.querySelector("#load-more")) {
+      scrollData[0] = setInterval(alternativeOldTwitterScrollLoop, 100);
+    } else scrollData[0] = setInterval(scrollLoop, 100);
   }
 }
 
