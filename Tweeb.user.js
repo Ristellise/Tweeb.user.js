@@ -14,7 +14,7 @@
 // @grant        GM_getValue
 // @grant        GM_deleteValue
 // @grant        GM_listValues
-// @require      https://cdnjs.cloudflare.com/ajax/libs/humanize-duration/3.32.1/humanize-duration.min.js
+// @grant        GM_addElement
 // @run-at document-start
 // ==/UserScript==
 
@@ -882,6 +882,8 @@ var xhook = (function () {
 
 // End xhook mod
 
+// webpack hook for regular
+
 /*
   >: Global defines.
 */
@@ -1149,13 +1151,16 @@ function pushTweetsBundle(entries) {
   sessionTweetStore = { ...sessionTweetStore, ...newTweets };
 
   tweebGlobalAdded = Object.keys(newTweets).length;
-  ulog("[newPush]", "addedTweets", tweebGlobalAdded);
-  const timer = Date.now();
-  writeTweetStore(newTweets);
-  ulog(
-    "[newPush]",
-    `Saved to store. Took: ${(Date.now() - timer) / 1000}s to complete.`
-  );
+  if (tweebGlobalAdded > 0) {
+    triggerSnackbar(`Added ${tweebGlobalAdded} new tweets.`);
+    ulog("[newPush]", "addedTweets", tweebGlobalAdded);
+    const timer = Date.now();
+    writeTweetStore(newTweets);
+    ulog(
+      "[newPush]",
+      `Saved to store. Took: ${(Date.now() - timer) / 1000}s to complete.`
+    );
+  }
 }
 
 function writeTweetStore(newTweets) {
@@ -1212,8 +1217,6 @@ function wipeTweebStore() {
 }
 
 function getAllTweebStore() {
-  alert("Downloading Archive. This might take a while due to cleanup");
-
   cleanupStore(); // Probably fine to execute cleanup storage here since you only download your archive ever so frequently.
 
   var bigBundle = {};
@@ -1329,22 +1332,42 @@ function solveUserObject(coreResult) {
   // So I don't have to type out .legacy lol.
   const legacyData = coreResult.legacy;
 
+  // CAA Twitter (~27/05). Someone decided that it's a good idea to push some changes on a monday.
+  // (coreResult.core)
+
   // User Object. See ArchivingNotes.md for details
   const userObject = coreResult
     ? {
         // rest_id for when needing to skip searching for IDs
         id: coreResult.rest_id,
-        display_name: legacyData.name,
-        handle: legacyData.screen_name,
-        location: legacyData.location,
-        created: Date.parse(legacyData.created_at).toFixed(0) / 1000,
+        display_name: legacyData.name ? legacyData.name : coreResult.core.name,
+        handle: legacyData.screen_name
+          ? legacyData.screen_name
+          : coreResult.core.screen_name,
+        location: legacyData.location
+          ? legacyData.location
+          : legacyData.location.location,
+        created:
+          Date.parse(
+            legacyData.created_at
+              ? legacyData.created_at
+              : coreResult.core.created_at
+          ).toFixed(0) / 1000,
         bio: fullbioText,
-        // TODO: Verify with a locked account.
-        locked: legacyData.protected ? true : false,
+        // Checked. locked accounts are listed as protected.
+        locked: legacyData.protected
+          ? true
+          : legacyData.privacy.protected
+          ? true
+          : false,
         // Verified or not. 2 values for `is_blue_verified` and `legacy.verified`.
         blue: {
           has: coreResult.is_blue_verified ? true : false,
-          legacy: legacyData.verified ? true : false,
+          legacy: legacyData.verified
+            ? true
+            : legacyData.verification.verified
+            ? true
+            : false,
           // has hidden blue.
           hidden: coreResult.has_hidden_subscriptions_on_profile ? true : false,
         },
@@ -1361,6 +1384,11 @@ function solveUserObject(coreResult) {
         },
       }
     : {};
+  if (!userObject.handle) {
+    alert(
+      "[Tweeb.user.js] User object appears to be invalidated? Report this issue."
+    );
+  }
   return userObject;
 }
 
@@ -1652,6 +1680,7 @@ function hook_regular_twitter() {
         XHookNavElement = mutation.target;
         ulog("Found target");
         XHookBtnElementcatcher.disconnect();
+        setupSnackbar();
         const moreTarget = mutation.target.querySelector(
           "[aria-label='More menu items']"
         ).parentNode;
@@ -1725,11 +1754,17 @@ function on_old_twitter_message(params) {
     pathName.endsWith("UserMedia") ||
     pathName.endsWith("TweetDetail")
   ) {
+    const timer = Date.now();
     timelineExtractor(params.data.body, true);
+    ulog(
+      "[timelineExtractor]",
+      `Took: ${(Date.now() - timer) / 1000}s to complete.`
+    );
   }
 }
 
 function hookOldTwitterTimelineData() {
+  setupSnackbar();
   const node = document.querySelector("body#injected-body");
   node
     .querySelector("#about-left")
@@ -1768,6 +1803,42 @@ function hookOldTwitterTimelineData() {
 
 function hook_old_twitter_ext() {
   unsafeWindow.addEventListener("message", on_old_twitter_message);
+}
+
+/*
+  >: Snackbar
+*/
+
+const snackStyle = `<style> #tweebSnackbar {   visibility: hidden;   min-width: 250px;   margin-left: -125px;   background-color: #333;   color: #fff;   text-align: center;   border-radius: 2px;   padding: 16px;   position: fixed;   z-index: 1;   left: 50%;   bottom: 30px;   font-size: 17px; }  #tweebSnackbar.show {   visibility: visible;   -webkit-animation: fadein 0.5s, fadeout 0.5s 2.5s;   animation: fadein 0.5s, fadeout 0.5s 2.5s; }  @-webkit-keyframes fadein {   from {bottom: 0; opacity: 0;}    to {bottom: 30px; opacity: 1;} }  @keyframes fadein {   from {bottom: 0; opacity: 0;}   to {bottom: 30px; opacity: 1;} }  @-webkit-keyframes fadeout {   from {bottom: 30px; opacity: 1;}    to {bottom: 0; opacity: 0;} }  @keyframes fadeout {   from {bottom: 30px; opacity: 1;}   to {bottom: 0; opacity: 0;} } </style>`;
+const snackContent = `<div id="tweebSnackbar">...</div>`;
+var GsnackElement = null;
+
+function setupSnackbar() {
+  const body = document.querySelector("body");
+  body.insertAdjacentHTML("beforeend", snackStyle);
+  body.insertAdjacentHTML("beforeend", snackContent);
+  const snackElement = document.querySelector("#tweebSnackbar");
+  if (snackElement) {
+    GsnackElement = snackElement;
+  }
+}
+
+var GsnackhideTimeout = null;
+
+function triggerSnackbar(text) {
+  if (GsnackElement) {
+    GsnackElement.textContent = text;
+    if (GsnackhideTimeout) {
+      clearTimeout(GsnackhideTimeout);
+      GsnackhideTimeout = null;
+    } else {
+      GsnackElement.className = "show";
+    }
+    GsnackhideTimeout = setTimeout(function () {
+      GsnackElement.className = GsnackElement.className.replace("show", "");
+      GsnackhideTimeout = null;
+    }, 3000);
+  }
 }
 
 /*
@@ -1816,7 +1887,7 @@ function TweebScrollWithReference() {
         clearInterval(scrollData[0]); // Stop DoomScroller
         clearInterval(imageCheckInterval);
         scrollData[0] = null;
-        alert("Scroll Finished.");
+        triggerSnackbar("Scroll Finished.");
       }
     }, 500); // Check every 500ms
   }
@@ -1877,7 +1948,8 @@ function TweebDownload() {
 }
 
 function TweebDownloadArchive() {
-  ulog("Getting all archived tweets. This can take some time...");
+  triggerSnackbar("Getting all archived tweets. This can take some time...");
+  // ulog("Getting all archived tweets. This can take some time...");
   saveData(
     getAllTweebStore(),
     `TweetUserScriptArchive-${Math.floor(Date.now() / 1000)}.json`
@@ -1908,7 +1980,8 @@ function alternativeOldTwitterScrollLoop() {
     }
   }
   if (tweebGlobalAdded == 0) {
-    alert("Scroll Finished. No more new tweets detected.");
+    triggerSnackbar("Scroll Finished. No more new tweets detected.");
+    // alert("Scroll Finished. No more new tweets detected.");
     clearInterval(scrollData[0]);
     scrollData[0] = null;
     scrollData[3] = 0;
@@ -1934,7 +2007,8 @@ function scrollLoop() {
       .scrollIntoViewIfNeeded();
   }
   if (tweebGlobalAdded == 0) {
-    alert("Scroll Finished. No more new tweets detected.");
+    triggerSnackbar("Scroll Finished. No more new tweets detected.");
+    // alert("Scroll Finished. No more new tweets detected.");
     clearInterval(scrollData[0]);
     scrollData[0] = null;
     scrollData[3] = 0;
@@ -1948,7 +2022,7 @@ function scrollLoop() {
         tweebGlobalAdded,
         unsafeWindow.scrollY === scrollData[2]
       );
-      alert("Scroll Finished.");
+      triggerSnackbar("Scroll Finished. Timeline locked up.");
       clearInterval(scrollData[0]);
       scrollData[0] = null;
       scrollData[3] = 0;

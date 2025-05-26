@@ -24,11 +24,20 @@ Tweeb is a userscript designed for Tampermonkey and Greasemonkey that automatica
 
 Tweeb works by intercepting network requests to capture tweet data as it's loaded. The following buttons will appear on the Twitter interface to provide easy access to its functions:
 
+### Injected Button Actions
+
 `[DL Tweets] Session`: Downloads the tweets saved during the current session  
 `[DL Tweets] Archive`: Downloads all past archives  
 `Wipe Session & Archive`: **Caution:** This action will permanently delete ALL tweets saved in both your current session and the entire archive. You will be prompted for confirmation before proceeding.  
 `Auto Scroll`: Toggles automatic scrolling. The script will scroll down the page until no new tweets are loaded.  
 `Auto Scroll [R]`: Toggles automatic scrolling using a previously downloaded JSON archive file (from a session or full archive) as a reference. This can be used to scroll and check for tweets not present in the reference file.  
+
+### Userscript Configuration
+
+- `Toggle Load Archive Cache on Page Refresh`: (Default: OFF).
+  If disabled, archive tweets will not be loaded into the current session.  
+  If enabled, a dummy "archive tweet" will be loaded on each page refresh.
+
 
 ## "Backends" / "Methods" / "Hooks"
 
