@@ -1331,62 +1331,80 @@ function solveUserObject(coreResult) {
   }
   // So I don't have to type out .legacy lol.
   const legacyData = coreResult.legacy;
+  const coreData = coreResult.core;
 
   // CAA Twitter (~27/05). Someone decided that it's a good idea to push some changes on a monday.
-  // (coreResult.core)
+  var handle, display_name, location, locked, legacyVerify, parsedOK;
+  created = null;
+  //New splitted core data
+  if (coreData) {
+    handle = coreData.screen_name;
+    display_name = coreData.name;
+    location = coreResult.location.location;
+    locked = coreResult.privacy.protected ? true : false;
+    legacyVerify = coreResult.verification.verified ? true : false;
+    created = Date.parse(coreData.created_at).toFixed(0) / 1000;
+    parsedOK = true;
+  }
+  // try legacy method.
+  else if (legacyData.screen_name) {
+    handle = legacyData.screen_name;
+    display_name = legacyData.name;
+    location = legacyData.location;
+    locked = legacyData.protected ? true : false;
+    legacyVerify = legacyData.verified ? true : false;
+    created = Date.parse(legacyData.created_at).toFixed(0) / 1000;
+    parsedOK = true;
+  } else {
+    ulog("Failed to find correct screenData!", coreResult);
+  }
 
   // User Object. See ArchivingNotes.md for details
   const userObject = coreResult
     ? {
         // rest_id for when needing to skip searching for IDs
         id: coreResult.rest_id,
-        display_name: legacyData.name ? legacyData.name : coreResult.core.name,
-        handle: legacyData.screen_name
-          ? legacyData.screen_name
-          : coreResult.core.screen_name,
-        location: legacyData.location
-          ? legacyData.location
-          : coreResult.location.location,
-        created:
-          Date.parse(
-            legacyData.created_at
-              ? legacyData.created_at
-              : coreResult.core.created_at
-          ).toFixed(0) / 1000,
+        // display Name for the user.
+        display_name: display_name,
+        handle: handle,
+        location: location,
+        created: created,
         bio: fullbioText,
-        // Checked. locked accounts are listed as protected.
-        locked: legacyData.protected
-          ? true
-          : coreResult.privacy.protected
-          ? true
-          : false,
-        // Verified or not. 2 values for `is_blue_verified` and `legacy.verified`.
+        // locked accounts are listed as protected.
+        locked: locked,
+        // XXX: To find out what's the difference between graduated and non-graduated access.
+        graduation: coreResult.has_graduated_access ? true : false,
+        // Blue Status:
+        // has: Has blue checkmark
+        // legacy: Was/Still is a verified account (i.e. before the whole blue thing from elon.)
+        // hidden: The blue checkmark is hidden by the user.
         blue: {
           has: coreResult.is_blue_verified ? true : false,
-          legacy: legacyData.verified
-            ? true
-            : coreResult.verification.verified
-            ? true
-            : false,
+          legacy: legacyVerify,
           // has hidden blue.
           hidden: coreResult.has_hidden_subscriptions_on_profile ? true : false,
         },
         // Counts for the user
         counts: {
-          posts: legacyData.statuses_count,
-          likes: legacyData.favourites_count,
-          media: legacyData.media_count,
+          posts: legacyData.statuses_count ? legacyData.statuses_count : -1,
+          likes: legacyData.favourites_count ? legacyData.favourites_count : -1,
+          media: legacyData.media_count ? legacyData.media_count : -1,
           follows: {
-            fast: legacyData.fast_followers_count,
-            slow: legacyData.normal_followers_count,
-            friends: legacyData.friends_count,
+            fast: legacyData.fast_followers_count
+              ? legacyData.fast_followers_count
+              : -1,
+            slow: legacyData.normal_followers_count
+              ? legacyData.normal_followers_count
+              : -1,
+            friends: legacyData.friends_count ? legacyData.friends_count : -1,
           },
         },
       }
     : {};
-  if (!userObject.handle) {
+  // Twitter changed their APIs again.
+  if (!parsedOK) {
     alert(
-      "[Tweeb.user.js] User object appears to be invalidated? Report this issue."
+      "[Tweeb.user.js] User object appears to be invalidated. Report this to\nhttps://github.com/Ristellise/Tweeb.user.js"
     );
   }
   return userObject;
