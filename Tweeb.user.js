@@ -1392,7 +1392,7 @@ function solveUserObject(coreResult) {
           follows: {
             fast: legacyData.fast_followers_count
               ? legacyData.fast_followers_count
-              : -1,
+              : 0,
             slow: legacyData.normal_followers_count
               ? legacyData.normal_followers_count
               : -1,
