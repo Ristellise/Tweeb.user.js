@@ -1346,7 +1346,7 @@ function solveUserObject(coreResult) {
           : coreResult.core.screen_name,
         location: legacyData.location
           ? legacyData.location
-          : legacyData.location.location,
+          : coreResult.location.location,
         created:
           Date.parse(
             legacyData.created_at
@@ -1357,7 +1357,7 @@ function solveUserObject(coreResult) {
         // Checked. locked accounts are listed as protected.
         locked: legacyData.protected
           ? true
-          : legacyData.privacy.protected
+          : coreResult.privacy.protected
           ? true
           : false,
         // Verified or not. 2 values for `is_blue_verified` and `legacy.verified`.
@@ -1365,7 +1365,7 @@ function solveUserObject(coreResult) {
           has: coreResult.is_blue_verified ? true : false,
           legacy: legacyData.verified
             ? true
-            : legacyData.verification.verified
+            : coreResult.verification.verified
             ? true
             : false,
           // has hidden blue.
