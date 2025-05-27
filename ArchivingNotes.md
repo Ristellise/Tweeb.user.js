@@ -8,59 +8,66 @@ The structure of the archive looks like this.
     "1911071812236042406": {
         // Tweet ID
         "id": "1911071812236042406",
-        // full_text
+        // Text of tweet.
         "text": "gm group chat say it back",
         "user": {
-            // User's internal rest_id. Can be useful for skipping a handle to a rest_id lookup
+            // RestID. Use this to skip 1 step from resolving "screen_name" / handle to fetching userdata.
             "id": "783214",
-            // Display name of the user
+            // display name of the user
             "display_name": "X",
-            // The @handle for the user
+            // the @handle
             "handle": "X",
+            // Location string
             "location": "everywhere",
-            // Bio of the user
+            // Created time
+            "created": 1171982154,
+            // The bio for the user
             "bio": "what's happening?!",
+            // If the account is protected or not. This can change @ scrape time.
             "locked": false,
-            // """Verified"""/blue status.
+            // "Has_graduated_access". This appears to be "false" for some old accounts and quite likely new ones... This needs confirmation on what this actually is for.
+            "graduation": true,
             "blue": {
-                // Verified / Paid for it
                 "has": true,
-                // Older twitter verified
                 "legacy": false,
-                // If the user hid their blueness.
                 "hidden": false
             },
-            // Counts for the user
             "counts": {
-                // total posts for the user
-                "posts": 15557,
-                // Likes from a user
-                "likes": 5854,
-                // media posts
-                "media": 2455,
+                // No. of posts
+                "posts": 15572,
+                // No. of likes
+                "likes": 5915,
+                // No. of media posts
+                "media": 2460,
+                // Follows are split into a couple sections
                 "follows": {
-                    // XXX: If anyone figures out what fast means, lmk.
-                    // ? Probably inflated / unverified follows?
+                    // No. of "fast_follows".
                     "fast": 0,
-                    // Most follows should be this
-                    "slow": 68982113,
+                    // Regular followers
+                    "slow": 68730407,
+                    // Followers who also followed this account. ala friends.
                     "friends": 1
                 }
             }
         },
         // Any media animated_gif, video and photos are supported.
         "media": [],
-        // User counts.
+        // Time of tweet creation.
+        "created": 1744470000,
         "counts": {
-            "reply": 15803,
-            "like": 264090,
-            // Retweets
-            "retweet": 123711,
-            // quotes. (I think retweets include quotes)
-            "quote": 2911,
-            // bookmarks
-            "bookmarked": 10585
+            // No. of replies
+            "reply": 5502,
+            // No. of likes
+            "like": 9567,
+            // No. of retweets
+            "retweet": 826,
+            // No. of retweets that are quotes
+            "quote": 232,
+            // No. of bookmarks
+            "bookmarked": 261
         },
+        "quote": null,
+        // Reply ID if this is a reply to another tweet
         "reply": null
     }
 }
@@ -82,10 +89,10 @@ This structure is not tied to any user who scrapes it\*
 
 ## Why views are not included?
 
-Mmm, I think views are not exactly representive of how popular a post is. Plus they can be boosted.  
+Mmm, I think views are not exactly reprehensive of how popular a post is. Plus they can be boosted.  
 
 ...Basically I think views are probably copium fuel for certain *individuals that I shall not mention.*
 
-## Repost "posts"
+## Repost / Retweets "posts"
 
 Repost are resolved to the original post.
