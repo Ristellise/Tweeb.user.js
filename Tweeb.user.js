@@ -931,6 +931,10 @@ function yeetGrok(entry) {
     ulog("unable to ungrok", entry);
     return entry;
   }
+  if (!baseEntry.itemContent.tweet_results.result) {
+    ulog("unable to ungrok, missing result.", entry);
+    return entry;
+  }
   if (
     baseEntry.itemContent.tweet_results.result &&
     baseEntry.itemContent.tweet_results.result.grok_analysis_button
@@ -1015,6 +1019,19 @@ function timelineExtractor(timelineData, grokSkip) {
         "timelineData.data.search_by_raw_query",
         timelineData.data.search_by_raw_query
       );
+    }
+  } else if (timelineData.data.communityResults) {
+    if (timelineData.data.communityResults.result.ranked_community_timeline) {
+      instructions =
+        timelineData.data.communityResults.result.ranked_community_timeline
+          .timeline.instructions;
+    } else {
+      ulog(
+        "Skipping Non-Ranked:",
+        Object.keys(timelineData.data.communityResults.result)
+      );
+      // skip non-ranked community timelines
+      return timelineData, [];
     }
   } else if (timelineData.data.threaded_conversation_with_injections_v2) {
     instructions =
@@ -1266,6 +1283,16 @@ function getRealTweetObject(entryItem) {
           ulog("entryItem.item.itemContent.tweet_results is null?", entryItem);
           return null;
         }
+      if (
+        !tryItem.item.itemContent.tweet_results ||
+        !entryItem.item.itemContent.tweet_results.result
+      ) {
+        ulog(
+          "entryItem.item.itemContent.tweet_results.result is null?",
+          entryItem
+        );
+        return null;
+      }
       if (entryItem.item.itemContent.tweet_results.result.tweet)
         return entryItem.item.itemContent.tweet_results.result.tweet;
       return entryItem.item.itemContent.tweet_results.result;
@@ -1557,13 +1584,14 @@ function xhook_hook(request, response) {
   if (
     request.url &&
     u.pathname.includes("/graphql/") &&
-    (u.pathname.endsWith("HomeLatestTimeline") ||
+    (u.pathname.endsWith("CommunityTweetsTimeline") ||
+      u.pathname.endsWith("HomeLatestTimeline") ||
       u.pathname.endsWith("HomeTimeline") ||
-      u.pathname.endsWith("UserTweets") ||
-      u.pathname.endsWith("UserTweetsAndReplies") ||
       u.pathname.endsWith("SearchTimeline") ||
+      u.pathname.endsWith("TweetDetail") ||
       u.pathname.endsWith("UserMedia") ||
-      u.pathname.endsWith("TweetDetail"))
+      u.pathname.endsWith("UserTweets") ||
+      u.pathname.endsWith("UserTweetsAndReplies"))
   ) {
     // ulog(u,"Captured")
     if (response.status == 429) {
