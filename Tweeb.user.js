@@ -1284,7 +1284,7 @@ function getRealTweetObject(entryItem) {
           return null;
         }
       if (
-        !tryItem.item.itemContent.tweet_results ||
+        !entryItem.item.itemContent.tweet_results ||
         !entryItem.item.itemContent.tweet_results.result
       ) {
         ulog(
