@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Tweeb
 // @namespace    http://tampermonkey.net/
-// @version      25.06.04
+// @version      25.06.09
 // @description  Tweeb: Userscript for twitter
 // @author       Shinon
 // @match        https://twitter.com/*
