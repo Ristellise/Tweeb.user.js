@@ -1083,14 +1083,16 @@ function timelineExtractor(timelineData, grokSkip) {
     if (
       instruction.type == "TimelineAddEntries" &&
       instruction.entries.length >= 1 &&
-      instruction.entries[0].entryId.startsWith("profile-grid-")
+      (instruction.entries[0].entryId.startsWith("profile-grid-") ||
+        instruction.entries[0].entryId.startsWith("search-grid-"))
     ) {
       // ulog("Adding Media Grid Entries...")
       pushTweetsBundle(instruction.entries[0].content.items);
       hasPushedTweets = true;
     } else if (
       instruction.type == "TimelineAddToModule" &&
-      instruction.moduleEntryId.startsWith("profile-grid-")
+      (instruction.moduleEntryId.startsWith("profile-grid-") ||
+        instruction.moduleEntryId.startsWith("search-grid-"))
     ) {
       // ulog("Adding Media Grid Update Entries...")
       pushTweetsBundle(instruction.moduleItems);
@@ -1264,7 +1266,8 @@ function getRealTweetObject(entryItem) {
   if (entryItem.entryId) {
     if (
       entryItem.entryId.startsWith("tweet-") ||
-      entryItem.entryId.startsWith("profile-grid-")
+      entryItem.entryId.startsWith("profile-grid-") ||
+      entryItem.entryId.startsWith("search-grid-")
     ) {
       var baseentry = null;
       if (entryItem.item) {
@@ -1550,10 +1553,7 @@ function solveTweet(tweetItem) {
               mediaItem.original_info.width,
               mediaItem.original_info.height,
             ],
-            large: [
-              mediaItem.sizes.large.width,
-              mediaItem.sizes.large.height,
-            ],
+            large: [mediaItem.sizes.large.width, mediaItem.sizes.large.height],
           },
         };
         if (
