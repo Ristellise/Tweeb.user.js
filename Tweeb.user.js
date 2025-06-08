@@ -1470,25 +1470,41 @@ function solveTweet(tweetItem) {
       ulog("retweetedStatus Fail", tweetContent);
     }
   } else {
-    var fullText = tweetContent.full_text;
+    var fullText = null;
 
-    if (tweetContent.entities) {
-      if (tweetContent.entities.urls.length > 0) {
-        // ulog("Entity replacement", tweetContent.entities);
-        tweetContent.entities.urls.forEach((url) => {
-          fullText = fullText.replace(url.url, url.expanded_url);
+    if (tweetObject.note_tweet && tweetObject.note_tweet.is_expandable) {
+      const noteResults = tweetObject.note_tweet.note_tweet_results.result;
+      fullText = noteResults.text;
+      ulog(noteResults);
+      if (noteResults.entity_set.urls.length > 0) {
+        const searchStrings = noteResults.entity_set.urls.map((url) => {
+          return [fullText.substring(...url.indices), url.expanded_url];
+        });
+        ulog(searchStrings);
+        searchStrings.forEach((search) => {
+          fullText = fullText.replace(search[0], search[1]);
         });
       }
-      if (
-        tweetContent.entities.media &&
-        tweetContent.entities.media.length > 0
-      ) {
-        tweetContent.entities.media.forEach((url) => {
-          fullText = fullText.replace(url.url, "");
-        });
+    } else {
+      fullText = tweetContent.full_text;
+      if (tweetContent.entities) {
+        if (tweetContent.entities.urls.length > 0) {
+          // ulog("Entity replacement", tweetContent.entities);
+          tweetContent.entities.urls.forEach((url) => {
+            fullText = fullText.replace(url.url, url.expanded_url);
+          });
+        }
+        if (
+          tweetContent.entities.media &&
+          tweetContent.entities.media.length > 0
+        ) {
+          tweetContent.entities.media.forEach((url) => {
+            fullText = fullText.replace(url.url, "");
+          });
+        }
+        // Trim whitespace
+        fullText = fullText.replace(/ +$/, "");
       }
-      // Trim whitespace
-      fullText = fullText.replace(/ +$/, "");
     }
 
     simpleTweet = {
@@ -1525,11 +1541,38 @@ function solveTweet(tweetItem) {
     var media = [];
     extEntity.media.forEach((mediaItem) => {
       if (mediaItem.type == "photo") {
-        media.push({
+        var mediaFinal = {
           type: mediaItem.type ? mediaItem.type : null,
           url: mediaItem.media_url_https + "?name=orig",
           alt: mediaItem.ext_alt_text ? mediaItem.ext_alt_text : null,
-        });
+          size: {
+            orig: [
+              mediaItem.original_info.width,
+              mediaItem.original_info.height,
+            ],
+            large: [
+              mediaItem.sizes.large.width,
+              mediaItem.sizes.large.height,
+            ],
+          },
+        };
+        if (
+          mediaItem.features &&
+          mediaItem.features.all &&
+          mediaItem.features.all.tags
+        ) {
+          mediaFinal.tags = mediaItem.features.all.tags.map((tag) => {
+            return tag.type == "user"
+              ? {
+                  id: tag.user_id,
+                  display_name: tag.name,
+                  handle: tag.screen_name,
+                  type: tag.type,
+                }
+              : tag;
+          });
+        }
+        media.push(mediaFinal);
       } else if (
         mediaItem.type == "video" ||
         mediaItem.type == "animated_gif"
