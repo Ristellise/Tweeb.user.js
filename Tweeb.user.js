@@ -1480,12 +1480,8 @@ function solveTweet(tweetItem) {
       fullText = noteResults.text;
       ulog(noteResults);
       if (noteResults.entity_set.urls.length > 0) {
-        const searchStrings = noteResults.entity_set.urls.map((url) => {
-          return [fullText.substring(...url.indices), url.expanded_url];
-        });
-        ulog(searchStrings);
-        searchStrings.forEach((search) => {
-          fullText = fullText.replace(search[0], search[1]);
+        noteResults.entity_set.urls.forEach((url) => {
+          fullText = fullText.replace(url.url, url.expanded_url);
         });
       }
     } else {
@@ -1662,7 +1658,39 @@ function xhook_hook(request, response) {
     timelineExtractor(hometimeline);
     response.text = JSON.stringify(hometimeline);
   }
+  if (
+    request.url &&
+    u.pathname.includes("/graphql/") &&
+    u.pathname.endsWith("AudioSpaceById")
+  ) {
+    try {
+      var spaceByIdData = JSON.parse(response.text);
+    } catch (error) {
+      // dolly up the error to twitter to handle
+      ulog(error);
+      return;
+    }
+    if (
+      "data" in Object.keys(spaceByIdData) &&
+      spaceByIdData?.data?.audioSpace?.metadata?.media_key
+    ) {
+      const spaceID = spaceByIdData?.data?.audioSpace?.metadata?.rest_id;
+      SessionSpaceCache[spaceID] = spaceByIdData?.data?.audioSpace;
+    }
+  }
   return response;
+}
+
+// Used to capture space media ids.
+SessionSpaceCache = {};
+
+function download_space(spaceId) {
+  if (spaceId in Object.keys(SessionSpaceCache)) {
+    const spaceMeta = SessionSpaceCache[spaceId];
+    fetch(
+      `https://x.com/i/api/1.1/live_video_stream/status/${spaceMeta.metadata.media_key}`
+    );
+  }
 }
 
 const XHookBlock = `<a href="#none" id="tweebDL" aria-label="Download Media" role="link"
@@ -1751,6 +1779,7 @@ function hook_regular_twitter() {
       }
 
       u.searchParams.set("variables", JSON.stringify(vars));
+      // u.searchParams.set("features", JSON.stringify(features));
       request.url = u.toString();
     }
   });
