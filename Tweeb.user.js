@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Tweeb
 // @namespace    http://tampermonkey.net/
-// @version      25.06.22
+// @version      25.07.10
 // @description  Tweeb: Userscript for twitter
 // @author       Shinon
 // @match        https://twitter.com/*
@@ -15,6 +15,7 @@
 // @grant        GM_deleteValue
 // @grant        GM_listValues
 // @grant        GM_addElement
+// @sandbox JavaScript
 // @run-at document-start
 // ==/UserScript==
 
@@ -979,6 +980,16 @@ function yeetGrok(entry) {
   return entry;
 }
 
+function isEmpty(obj) {
+  for (const prop in obj) {
+    if (Object.hasOwn(obj, prop)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 /**
  * Extract timeline data and solve for it.
  * @param {object} timelineData The timeline data
@@ -1009,6 +1020,13 @@ function timelineExtractor(timelineData, grokSkip) {
     }
   } else if (timelineData.data.search_by_raw_query) {
     if (timelineData.data.search_by_raw_query.search_timeline) {
+      if (isEmpty(timelineData.data.search_by_raw_query.search_timeline)) {
+        uLogTimelineError(
+          "timelineData.data.search_by_raw_query",
+          timelineData.data.search_by_raw_query
+        );
+        return timelineData, [];
+      }
       // For search
       instructions =
         timelineData.data.search_by_raw_query.search_timeline.timeline
@@ -1047,10 +1065,14 @@ function timelineExtractor(timelineData, grokSkip) {
   for (let instructIdx = 0; instructIdx < instructions.length; instructIdx++) {
     var instruction = instructions[instructIdx];
     if (instruction.type == "TimelineAddEntries") {
+      ulog(instruction.entries);
       var cleanedEntries = instruction.entries.filter((entry) => {
         if (entry.entryId.startsWith("conversationthread-")) {
           entry.content.items = entry.content.items.filter((subEntry) => {
-            return !subEntry.entryId.includes("-promoted-tweet-");
+            const hasPromoMetadata =
+              !!subEntry?.item?.itemContent?.promotedMetadata;
+            const oldPromote = subEntry.entryId.includes("-promoted-tweet-");
+            return hasPromoMetadata || oldPromote ? false : true;
           });
         }
         return !entry.entryId.startsWith("promoted");
@@ -1749,6 +1771,7 @@ function hook_regular_twitter() {
       (u.pathname.endsWith("client_event.json") ||
         u.pathname.endsWith("error_log.json") ||
         u.pathname.endsWith("/update_subscriptions") ||
+        u.pathname.endsWith("user_flow.json") ||
         // Creepy...
         u.pathname.endsWith("2/grok/search.json"))
     ) {
