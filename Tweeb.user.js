@@ -2109,7 +2109,7 @@ function TweebWipeArchive() {
   }
 }
 
-var scrollData = [null, 20, 0, 0];
+var scrollData = [null, 20, 0, 0, 0];
 
 function alternativeOldTwitterScrollLoop() {
   ulog("Scrolling Timeline...");
@@ -2128,6 +2128,8 @@ function alternativeOldTwitterScrollLoop() {
     scrollData[3] = 0;
   }
 }
+
+var hasEverSeenModernTwitterProgressBar = false;
 
 function scrollLoop() {
   ulog("Scrolling Timeline...");
@@ -2154,23 +2156,61 @@ function scrollLoop() {
     scrollData[0] = null;
     scrollData[3] = 0;
   }
-  if (unsafeWindow.scrollY === scrollData[2]) {
+
+  let isLastElementProgess = originalTimeline.querySelector(
+    'div:nth-last-child(1) div[role*="progressbar"]'
+  )
+    ? true
+    : false;
+  if (isLastElementProgess && !hasEverSeenModernTwitterProgressBar) {
+    ulog(
+      "Seen modern progress bar for the first time. Using alternative scrolling."
+    );
+    hasEverSeenModernTwitterProgressBar = true;
+  }
+  if (hasEverSeenModernTwitterProgressBar) {
     if (scrollData[1] > scrollData[3]) {
       scrollData[3]++;
-    } else {
-      ulog(
-        "Scroll locked. Giving up...",
-        tweebGlobalAdded,
-        unsafeWindow.scrollY === scrollData[2]
-      );
-      triggerSnackbar("Scroll Finished. Timeline locked up.");
-      clearInterval(scrollData[0]);
-      scrollData[0] = null;
-      scrollData[3] = 0;
+    } else if (
+      unsafeWindow.scrollY === scrollData[2] &&
+      !isLastElementProgess
+    ) {
+      // There's a split % chance where the progressbar is hidden / no more but it hasn't scrolled yet.
+      if (scrollData[1] > scrollData[4]) {
+        scrollData[4]++;
+      } else {
+        ulog(
+          "Progress Scroll locked. Giving up...",
+          tweebGlobalAdded,
+          unsafeWindow.scrollY === scrollData[2]
+        );
+        triggerSnackbar("Progressive Scroll Finished. Timeline locked up.");
+        clearInterval(scrollData[0]);
+        scrollData[0] = null;
+        scrollData[3] = 0;
+        scrollData[4] = 0;
+      }
     }
   } else {
-    scrollData[3] = 0;
+    if (unsafeWindow.scrollY === scrollData[2]) {
+      if (scrollData[1] > scrollData[3]) {
+        scrollData[3]++;
+      } else {
+        ulog(
+          "Scroll locked. Giving up...",
+          tweebGlobalAdded,
+          unsafeWindow.scrollY === scrollData[2]
+        );
+        triggerSnackbar("Scroll Finished. Timeline locked up.");
+        clearInterval(scrollData[0]);
+        scrollData[0] = null;
+        scrollData[3] = 0;
+      }
+    } else {
+      scrollData[3] = 0;
+    }
   }
+
   scrollData[2] = unsafeWindow.scrollY;
 }
 
