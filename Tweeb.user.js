@@ -1278,6 +1278,24 @@ function getAllTweebStore() {
   return bigBundle;
 }
 
+function smuggleTweetResults(tweet_result) {
+  let trueResult = null;
+  if (tweet_result?.result?.tweet) {
+    trueResult = tweet_result?.result?.tweet;
+  } else {
+    trueResult = tweet_result?.result;
+  }
+  if (trueResult == undefined || trueResult == null) {
+    return null;
+  }
+
+  if (tweet_result.post_image_description) {
+    trueResult._tweeb = {}
+    trueResult._tweeb.media_description = tweet_result.post_image_description
+  }
+  return trueResult;
+}
+
 /**
  * Finds and extracts the proper root for the tweet object.
  * @param {object} entryItem potential tweet entry from the timeline
@@ -1299,9 +1317,7 @@ function getRealTweetObject(entryItem) {
         ulog("tweet_results.result is null?", baseentry.itemContent);
         return null;
       }
-      if (baseentry.itemContent.tweet_results.result.tweet)
-        return baseentry.itemContent.tweet_results.result.tweet;
-      return baseentry.itemContent.tweet_results.result;
+      return smuggleTweetResults(baseentry.itemContent.tweet_results);
     } else if (entryItem.entryId.includes("-tweet-")) {
       if (entryItem.item.itemContent)
         if (!entryItem.item.itemContent.tweet_results) {
@@ -1318,19 +1334,13 @@ function getRealTweetObject(entryItem) {
         );
         return null;
       }
-      if (entryItem.item.itemContent.tweet_results.result.tweet)
-        return entryItem.item.itemContent.tweet_results.result.tweet;
-      return entryItem.item.itemContent.tweet_results.result;
+      return smuggleTweetResults(entryItem.item.itemContent.tweet_results);
     }
   } else if (
     entryItem.result &&
     entryItem.result.__typename.startsWith("Tweet")
   ) {
-    if (entryItem.result.tweet) {
-      return entryItem.result.tweet;
-    } else if (entryItem.result) {
-      return entryItem.result;
-    }
+    return smuggleTweetResults(entryItem);
   }
   return null;
 }
@@ -1471,7 +1481,7 @@ function solveTweet(tweetItem) {
   const tweetObject = getRealTweetObject(tweetItem);
 
   if (tweetObject == null) {
-    // ulog("tweetObjectis Null", tweetObject, tweetItem);
+    ulog("tweetObjectis Null", tweetObject, tweetItem);
     return null;
   }
   // Tombstone tweets show up as this before being removed from the timeline entirely on a page refresh.
@@ -1510,7 +1520,6 @@ function solveTweet(tweetItem) {
       fullText = tweetContent.full_text;
       if (tweetContent.entities) {
         if (tweetContent.entities.urls.length > 0) {
-          // ulog("Entity replacement", tweetContent.entities);
           tweetContent.entities.urls.forEach((url) => {
             fullText = fullText.replace(url.url, url.expanded_url);
           });
@@ -1617,6 +1626,12 @@ function solveTweet(tweetItem) {
     });
     simpleTweet.media = media;
   }
+  
+  if (tweetObject.post_image_description) {
+    simpleTweet.media_image_description = tweetObject.post_image_description
+  }
+
+
   return simpleTweet;
 }
 
