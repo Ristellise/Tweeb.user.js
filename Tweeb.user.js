@@ -894,7 +894,7 @@ tweebGlobalAdded = -1;
 sessionTweetStore = {};
 
 function ulog(...args) {
-  console.log(`\x1B[94m[Tweeb]\x1B[m`, ...args);
+  console.log(`%c[Tweeb]`, "color: #8bdffe", ...args);
 }
 
 function saveData(data, fileName) {
@@ -1290,8 +1290,8 @@ function smuggleTweetResults(tweet_result) {
   }
 
   if (tweet_result.post_image_description) {
-    trueResult._tweeb = {}
-    trueResult._tweeb.media_description = tweet_result.post_image_description
+    trueResult._tweeb = {};
+    trueResult._tweeb.media_description = tweet_result.post_image_description;
   }
   return trueResult;
 }
@@ -1626,11 +1626,10 @@ function solveTweet(tweetItem) {
     });
     simpleTweet.media = media;
   }
-  
-  if (tweetObject.post_image_description) {
-    simpleTweet.media_image_description = tweetObject.post_image_description
-  }
 
+  if (tweetObject.post_image_description) {
+    simpleTweet.media_image_description = tweetObject.post_image_description;
+  }
 
   return simpleTweet;
 }
@@ -1824,22 +1823,20 @@ function hook_regular_twitter() {
 
   var XHookNavElement = null;
 
+  const MORETARGET =
+    "[aria-label='More menu items'],[data-testid='AppTabBar_More_Menu']";
+
   var XHookBtnElementcatcher = new MutationObserver(function (mutations) {
     for (const mutation of mutations) {
       // ulog("Mutation updated");
       // console.log(mutation);
       if (mutation.type != "childList") continue;
-      if (
-        mutation.target.querySelector("[aria-label='More menu items']") &&
-        !XHookNavElement
-      ) {
+      if (mutation.target.querySelector(MORETARGET) && !XHookNavElement) {
         XHookNavElement = mutation.target;
         ulog("Found target");
         XHookBtnElementcatcher.disconnect();
         setupSnackbar();
-        const moreTarget = mutation.target.querySelector(
-          "[aria-label='More menu items']"
-        ).parentNode;
+        const moreTarget = mutation.target.querySelector(MORETARGET).parentNode;
         moreTarget.insertAdjacentHTML("beforeend", XHookBlock);
         document
           .querySelector("#tweebDL")
@@ -2146,19 +2143,25 @@ function alternativeOldTwitterScrollLoop() {
 
 var hasEverSeenModernTwitterProgressBar = false;
 
+const timelineSelector = [
+  'div[aria-label~="Timeline:" i] > div > div:nth-last-child(1)',
+  'div[aria-label~="タイムライン:" i] > div > div:nth-last-child(1)',
+].join(", ");
+
+const timelineSelectorAlt = [
+  'div[aria-label~="Timeline:" i] > div > div',
+  'div[aria-label~="タイムライン:" i] > div > div',
+].join(", ");
+
 function scrollLoop() {
   ulog("Scrolling Timeline...");
-  var originalTimeline = document.querySelector(
-    'div[aria-label~="Timeline:" i] > div > div:nth-last-child(1)'
-  );
+  var originalTimeline = document.querySelector(timelineSelector);
   if (originalTimeline !== null) {
-    document.querySelectorAll(
-      'div[aria-label~="Timeline:" i] > div > div'
-    ).style = "width:0%;";
-    var timelineHeightPx =
-      originalTimeline.parentElement.attributeStyleMap.get("min-height").value;
-    unsafeWindow.scrollTo(0, timelineHeightPx + 10 * 1000);
-    // originalTimeline.scrollIntoViewIfNeeded();
+    document.querySelectorAll(timelineSelectorAlt).style = "width:0%;";
+    // Solve the min-height
+    var minHeight = originalTimeline.parentElement.style["min-height"];
+    minHeight = parseInt(minHeight.substr(0, minHeight.length - 2));
+    unsafeWindow.scrollTo(0, minHeight + 10 * 1000);
   } else {
     originalTimeline = document
       .querySelector("#timeline > div:nth-last-child(1)")
