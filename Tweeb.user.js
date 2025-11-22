@@ -894,7 +894,7 @@ tweebGlobalAdded = -1;
 sessionTweetStore = {};
 
 function ulog(...args) {
-  console.log(`%c[Tweeb]`, "color: #8bdffe", ...args);
+  console.log(`%c[Tweeb]`, "color:#8bdffe", ...args);
 }
 
 function saveData(data, fileName) {
@@ -1786,6 +1786,7 @@ function hook_regular_twitter() {
         u.pathname.endsWith("error_log.json") ||
         u.pathname.endsWith("/update_subscriptions") ||
         u.pathname.endsWith("user_flow.json") ||
+        u.pathname.endsWith("ces/p2") ||
         // Creepy...
         u.pathname.endsWith("2/grok/search.json"))
     ) {
