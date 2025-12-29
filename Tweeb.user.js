@@ -1906,6 +1906,7 @@ function on_old_twitter_message(params) {
     pathName.endsWith("UserTweetsAndReplies") ||
     pathName.endsWith("SearchTimeline") ||
     pathName.endsWith("UserMedia") ||
+    pathName.endsWith("MediaTweets") ||
     pathName.endsWith("TweetDetail")
   ) {
     const timer = Date.now();
