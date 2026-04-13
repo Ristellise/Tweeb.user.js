@@ -477,7 +477,7 @@ var xhook = (function () {
           proxyEvents(
             COMMON_EVENTS.concat(UPLOAD_EVENTS),
             xhr.upload,
-            facade.upload
+            facade.upload,
           );
         }
 
@@ -489,7 +489,7 @@ var xhook = (function () {
           request.url,
           request.async,
           request.user,
-          request.pass
+          request.pass,
         );
 
         //write xhr settings
@@ -751,11 +751,11 @@ var xhook = (function () {
       const requestObj = copyToObjFromRequest(input);
       const prevHeaders = Object.assign(
         Object.assign({}, covertHeaderToPlainObj(requestObj.headers)),
-        covertHeaderToPlainObj(options.headers)
+        covertHeaderToPlainObj(options.headers),
       );
       options = Object.assign(
         Object.assign(Object.assign({}, requestObj), init),
-        { headers: prevHeaders, acceptedRequest: true }
+        { headers: prevHeaders, acceptedRequest: true },
       );
     } else {
       options.url = input;
@@ -782,7 +782,7 @@ var xhook = (function () {
         if (userResponse !== undefined) {
           const response = new Response(
             userResponse.body || userResponse.text,
-            userResponse
+            userResponse,
           );
           resolve(response);
           processAfter(response);
@@ -1023,9 +1023,9 @@ function timelineExtractor(timelineData, grokSkip) {
       if (isEmpty(timelineData.data.search_by_raw_query.search_timeline)) {
         uLogTimelineError(
           "timelineData.data.search_by_raw_query",
-          timelineData.data.search_by_raw_query
+          timelineData.data.search_by_raw_query,
         );
-        return timelineData, [];
+        return (timelineData, []);
       }
       // For search
       instructions =
@@ -1035,7 +1035,7 @@ function timelineExtractor(timelineData, grokSkip) {
       // Anything else is logged.
       uLogTimelineError(
         "timelineData.data.search_by_raw_query",
-        timelineData.data.search_by_raw_query
+        timelineData.data.search_by_raw_query,
       );
     }
   } else if (timelineData.data.communityResults) {
@@ -1046,10 +1046,10 @@ function timelineExtractor(timelineData, grokSkip) {
     } else {
       ulog(
         "Skipping Non-Ranked:",
-        Object.keys(timelineData.data.communityResults.result)
+        Object.keys(timelineData.data.communityResults.result),
       );
       // skip non-ranked community timelines
-      return timelineData, [];
+      return (timelineData, []);
     }
   } else if (timelineData.data.threaded_conversation_with_injections_v2) {
     instructions =
@@ -1057,7 +1057,7 @@ function timelineExtractor(timelineData, grokSkip) {
   }
   if (!instructions) {
     ulog("Cannot find instructions", timelineData);
-    return timelineData, [];
+    return (timelineData, []);
   }
   // Reconstruct timeline instructions to remove promotions.
 
@@ -1150,7 +1150,7 @@ function pushExistingTweets(objectEntries) {
   const seenIds = Object.keys(sessionTweetStore);
   var timelineTweets = objectEntries;
   var filteredTweetIds = Object.keys(timelineTweets).filter(
-    (key) => !seenIds.includes(key)
+    (key) => !seenIds.includes(key),
   );
   var newTweets = {};
   for (let index = 0; index < filteredTweetIds.length; index++) {
@@ -1165,7 +1165,7 @@ function pushExistingTweets(objectEntries) {
   writeTweetStore(newTweets);
   ulog(
     "[refresh]",
-    `Saved to store. Took: ${(Date.now() - timer) / 1000}s to complete.`
+    `Saved to store. Took: ${(Date.now() - timer) / 1000}s to complete.`,
   );
 }
 
@@ -1181,7 +1181,7 @@ function pushTweetsBundle(entries) {
   const seenIds = Object.keys(sessionTweetStore);
   var timelineTweets = extractTweetData(entries);
   var filteredTweetIds = Object.keys(timelineTweets).filter(
-    (key) => !seenIds.includes(key)
+    (key) => !seenIds.includes(key),
   );
   var newTweets = {};
 
@@ -1199,7 +1199,7 @@ function pushTweetsBundle(entries) {
     writeTweetStore(newTweets);
     ulog(
       "[newPush]",
-      `Saved to store. Took: ${(Date.now() - timer) / 1000}s to complete.`
+      `Saved to store. Took: ${(Date.now() - timer) / 1000}s to complete.`,
     );
   }
 }
@@ -1242,7 +1242,7 @@ function debugStorage() {
           m.startsWith("tweeb-Bundle") || m.startsWith("tweeb-BatchBundle")
         );
       })
-      .sort()
+      .sort(),
   );
 }
 
@@ -1330,7 +1330,7 @@ function getRealTweetObject(entryItem) {
       ) {
         ulog(
           "entryItem.item.itemContent.tweet_results.result is null?",
-          entryItem
+          entryItem,
         );
         return null;
       }
@@ -1380,13 +1380,12 @@ function flattenTweetDetail(instructionEntries) {
 
 function solveUserObject(coreResult) {
   if (!coreResult) return {};
+  if (!coreResult.legacy) {
+    ulog("failed to find legacyData in ", coreResult);
+    return {};
+  }
   var fullbioText = coreResult.legacy.description;
-  if (
-    coreResult.legacy &&
-    coreResult.legacy.description &&
-    coreResult.legacy.entities.description &&
-    coreResult.legacy.entities.description.urls
-  ) {
+  if (coreResult?.legacy?.entities?.description?.urls) {
     coreResult.legacy.entities.description.urls.forEach((url) => {
       fullbioText = fullbioText.replace(url.url, url.expanded_url);
     });
@@ -1466,7 +1465,7 @@ function solveUserObject(coreResult) {
   // Twitter changed their APIs again.
   if (!parsedOK) {
     alert(
-      "[Tweeb.user.js] User object appears to be invalidated. Report this to\nhttps://github.com/Ristellise/Tweeb.user.js"
+      "[Tweeb.user.js] User object appears to be invalidated. Report this to\nhttps://github.com/Ristellise/Tweeb.user.js",
     );
   }
   return userObject;
@@ -1509,8 +1508,8 @@ function solveTweet(tweetItem) {
 
     if (tweetObject.note_tweet && tweetObject.note_tweet.is_expandable) {
       const noteResults = tweetObject.note_tweet.note_tweet_results.result;
-      fullText = noteResults.text;
       ulog(noteResults);
+      fullText = noteResults.text;
       if (noteResults.entity_set.urls.length > 0) {
         noteResults.entity_set.urls.forEach((url) => {
           fullText = fullText.replace(url.url, url.expanded_url);
@@ -1659,12 +1658,9 @@ function xhook_hook(request, response) {
   if (
     request.url &&
     u.pathname.includes("/graphql/") &&
-    (u.pathname.endsWith("CommunityTweetsTimeline") ||
-      u.pathname.endsWith("HomeLatestTimeline") ||
-      u.pathname.endsWith("HomeTimeline") ||
-      u.pathname.endsWith("SearchTimeline") ||
-      u.pathname.endsWith("TweetDetail") ||
+    (u.pathname.endsWith("TweetDetail") ||
       u.pathname.endsWith("UserMedia") ||
+      u.pathname.endsWith("Timeline") ||
       u.pathname.endsWith("UserTweets") ||
       u.pathname.endsWith("UserTweetsAndReplies"))
   ) {
@@ -1673,14 +1669,14 @@ function xhook_hook(request, response) {
       alert(
         `[Tweeb.user.js] Rate limit exceeded.\nLimits will refresh in: ${humanizeDuration(
           (response.headers["x-rate-limit-reset"] - Date.now() / 1000) * 1000,
-          { round: true }
-        )}`
+          { round: true },
+        )}`,
       );
       ulog(
         "Rate limits",
         response.headers["x-rate-limit-remaining"],
         "Bucket Refilled @ ",
-        new Date(response.headers["x-rate-limit-reset"] * 1000)
+        new Date(response.headers["x-rate-limit-reset"] * 1000),
       );
       return;
     }
@@ -1724,7 +1720,7 @@ function download_space(spaceId) {
   if (spaceId in Object.keys(SessionSpaceCache)) {
     const spaceMeta = SessionSpaceCache[spaceId];
     fetch(
-      `https://x.com/i/api/1.1/live_video_stream/status/${spaceMeta.metadata.media_key}`
+      `https://x.com/i/api/1.1/live_video_stream/status/${spaceMeta.metadata.media_key}`,
     );
   }
 }
@@ -1810,7 +1806,7 @@ function hook_regular_twitter() {
       ulog("Modify Params...");
       var vars = JSON.parse(decodeURI(u.searchParams.get("variables")));
       if (vars && "count" in vars && vars["count"] <= 20) {
-        vars["count"] = 40;
+        vars["count"] = 20;
       }
       if (vars && "includePromotedContent" in vars) {
         vars["includePromotedContent"] = false;
@@ -1906,14 +1902,13 @@ function on_old_twitter_message(params) {
     pathName.endsWith("UserTweetsAndReplies") ||
     pathName.endsWith("SearchTimeline") ||
     pathName.endsWith("UserMedia") ||
-    pathName.endsWith("MediaTweets") ||
     pathName.endsWith("TweetDetail")
   ) {
     const timer = Date.now();
     timelineExtractor(params.data.body, true);
     ulog(
       "[timelineExtractor]",
-      `Took: ${(Date.now() - timer) / 1000}s to complete.`
+      `Took: ${(Date.now() - timer) / 1000}s to complete.`,
     );
   }
 }
@@ -1929,7 +1924,7 @@ function hookOldTwitterTimelineData() {
     .insertAdjacentHTML("beforeend", oldTwitterButtons);
   document
     .querySelectorAll(
-      "a.tweebDL, a.tweebArchive, a.tweebWipe, a.tweebScroll, a.tweebScrollRef"
+      "a.tweebDL, a.tweebArchive, a.tweebWipe, a.tweebScroll, a.tweebScrollRef",
     )
     .forEach((m) => {
       if (m.classList.contains("tweebDL")) {
@@ -2107,14 +2102,14 @@ function TweebDownloadArchive() {
   // ulog("Getting all archived tweets. This can take some time...");
   saveData(
     getAllTweebStore(),
-    `TweetUserScriptArchive-${Math.floor(Date.now() / 1000)}.json`
+    `TweetUserScriptArchive-${Math.floor(Date.now() / 1000)}.json`,
   );
 }
 
 function TweebWipeArchive() {
   if (
     confirm(
-      "Delete *ALL* your saved tweets?\nThis is not reversible!\n(Includes current session and previously archived!)"
+      "Delete *ALL* your saved tweets?\nThis is not reversible!\n(Includes current session and previously archived!)",
     )
   ) {
     sessionTweetStore = {};
@@ -2178,13 +2173,13 @@ function scrollLoop() {
   }
 
   let isLastElementProgess = originalTimeline.querySelector(
-    'div:nth-last-child(1) div[role*="progressbar"]'
+    'div:nth-last-child(1) div[role*="progressbar"]',
   )
     ? true
     : false;
   if (isLastElementProgess && !hasEverSeenModernTwitterProgressBar) {
     ulog(
-      "Seen modern progress bar for the first time. Using alternative scrolling."
+      "Seen modern progress bar for the first time. Using alternative scrolling.",
     );
     hasEverSeenModernTwitterProgressBar = true;
   }
@@ -2202,7 +2197,7 @@ function scrollLoop() {
         ulog(
           "Progress Scroll locked. Giving up...",
           tweebGlobalAdded,
-          unsafeWindow.scrollY === scrollData[2]
+          unsafeWindow.scrollY === scrollData[2],
         );
         triggerSnackbar("Progressive Scroll Finished. Timeline locked up.");
         clearInterval(scrollData[0]);
@@ -2219,7 +2214,7 @@ function scrollLoop() {
         ulog(
           "Scroll locked. Giving up...",
           tweebGlobalAdded,
-          unsafeWindow.scrollY === scrollData[2]
+          unsafeWindow.scrollY === scrollData[2],
         );
         triggerSnackbar("Scroll Finished. Timeline locked up.");
         clearInterval(scrollData[0]);
