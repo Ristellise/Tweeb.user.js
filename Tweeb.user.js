@@ -954,8 +954,8 @@ function isEmpty(obj) {
 
 /**
  * Extract timelines
- * @param {object} timelineData 
- * @returns 
+ * @param {object} timelineData
+ * @returns
  */
 function getTimelineInstructions(timelineData) {
   const data = timelineData?.data;
@@ -1261,33 +1261,25 @@ function getRealTweetObject(entryItem) {
  * @returns flattened array for tweets
  */
 function flattenTweetDetail(instructionEntries) {
-  var tweets = [];
-  instructionEntries.forEach((entry) => {
-    if (
-      (entry.entryId.startsWith("conversationthread-") &&
-        !entry.entryId.includes("-tweet-")) ||
-      (entry.entryId.startsWith("home-conversation-") &&
-        !entry.entryId.includes("-tweet-")) ||
-      (entry.entryId.startsWith("list-conversation-") &&
-        !entry.entryId.includes("-tweet-")) ||
-      (entry.entryId.startsWith("profile-conversation-") &&
-        !entry.entryId.includes("-tweet-")) ||
-      (entry.entryId.startsWith("tweetdetailrelatedtweets-") &&
-        !entry.entryId.includes("-tweet-"))
-    ) {
-      if (entry.content) {
-        tweets.push(...flattenTweetDetail(entry.content.items));
-      }
-    } else if (
-      entry.entryId.startsWith("conversationthread-") &&
-      entry.entryId.includes("-tweet-")
-    ) {
-      tweets.push(entry);
-    } else {
-      tweets.push(entry);
+  if (!Array.isArray(instructionEntries)) return [];
+
+  return instructionEntries.flatMap((entry) => {
+    const id = entry?.entryId || "";
+
+    // Identify container modules (threads, related tweets, etc.)
+    // It must contain "conversation" or "relatedtweets", but CANNOT contain "-tweet-"
+    const isContainer =
+      (id.includes("conversation") || id.includes("relatedtweets")) &&
+      !id.includes("-tweet-");
+
+    if (isContainer && entry.content?.items) {
+      // Recurse and flatten the sub-items
+      return flattenTweetDetail(entry.content.items);
     }
+
+    // If it's a standard tweet, a leaf-node inside a thread, or a cursor, just return it
+    return entry;
   });
-  return tweets;
 }
 
 /**
