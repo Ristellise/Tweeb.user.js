@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Tweeb
 // @namespace    http://tampermonkey.net/
-// @version      26.04.13
+// @version      10.05.13
 // @description  Tweeb: Userscript for twitter
 // @author       Shinon
 // @match        https://twitter.com/*
@@ -920,63 +920,25 @@ function uLogTimelineError(timelineType, ...args) {
  * @returns
  */
 function yeetGrok(entry) {
-  let baseEntry = null;
-  if (entry.item) {
-    baseEntry = entry.item;
-  } else if (entry.content) {
-    baseEntry = entry.content;
-  } else if (entry.result) {
-    baseEntry = entry.result;
+  // Coalesce the base entry gracefully
+  const baseEntry = entry?.item || entry?.content || entry?.result;
+  if (!baseEntry) return entry;
+
+  const result = baseEntry.itemContent?.tweet_results?.result;
+  if (!result) return entry;
+
+  if (result.grok_analysis_button) result.grok_analysis_button = false;
+  if (result.tweet?.grok_analysis_button)
+    result.tweet.grok_analysis_button = false;
+
+  if (result.legacy?.retweeted_status_result?.grok_analysis_button) {
+    result.legacy.retweeted_status_result.grok_analysis_button = false;
   }
-  if (!baseEntry) {
-    ulog("unable to ungrok", entry);
-    return entry;
+
+  if (result.tweet?.legacy?.retweeted_status_result?.grok_analysis_button) {
+    result.tweet.legacy.retweeted_status_result.grok_analysis_button = false;
   }
-  if (!baseEntry.itemContent.tweet_results.result) {
-    ulog("unable to ungrok, missing result.", entry);
-    return entry;
-  }
-  if (
-    baseEntry.itemContent.tweet_results.result &&
-    baseEntry.itemContent.tweet_results.result.grok_analysis_button
-  )
-    baseEntry.itemContent.tweet_results.result.grok_analysis_button = false;
-  else if (
-    baseEntry.itemContent.tweet_results.result &&
-    baseEntry.itemContent.tweet_results.result.tweet &&
-    baseEntry.itemContent.tweet_results.result.tweet.grok_analysis_button
-  )
-    baseEntry.itemContent.tweet_results.result.tweet.grok_analysis_button = false;
-  else {
-    ulog("unable to ungrok", baseEntry);
-  }
-  if (
-    baseEntry.itemContent.tweet_results.result &&
-    baseEntry.itemContent.tweet_results.result.legacy &&
-    baseEntry.itemContent.tweet_results.result.legacy.retweeted_status_result
-  ) {
-    var retweetedResult =
-      baseEntry.itemContent.tweet_results.result.legacy.retweeted_status_result;
-    if (retweetedResult.grok_analysis_button) {
-      retweetedResult.grok_analysis_button = false;
-      baseEntry.itemContent.tweet_results.result.legacy.retweeted_status_result =
-        retweetedResult;
-    }
-  } else if (
-    baseEntry.itemContent.tweet_results.result.tweet &&
-    baseEntry.itemContent.tweet_results.result.tweet.legacy &&
-    baseEntry.itemContent.tweet_results.result.tweet.legacy
-      .retweeted_status_result
-  ) {
-    var retweetedResult =
-      baseEntry.itemContent.tweet_results.result.tweet.legacy
-        .retweeted_status_result;
-    if (retweetedResult.grok_analysis_button) {
-      retweetedResult.grok_analysis_button = false;
-      baseEntry.itemContent.tweet_results.result.tweet.legacy.retweeted_status_result =
-        retweetedResult;
-    }
-  }
+
   return entry;
 }
 
@@ -991,73 +953,46 @@ function isEmpty(obj) {
 }
 
 /**
+ * Extract timelines
+ * @param {object} timelineData 
+ * @returns 
+ */
+function getTimelineInstructions(timelineData) {
+  const data = timelineData?.data;
+  if (!data) return null;
+
+  // A clean waterfall of possible instruction paths using optional chaining
+  return (
+    data.user?.result?.timeline_v2?.timeline?.instructions ||
+    data.user?.result?.timeline?.timeline?.instructions ||
+    data.home?.home_timeline_urt?.instructions ||
+    data.search_by_raw_query?.search_timeline?.timeline?.instructions ||
+    data.communityResults?.result?.ranked_community_timeline?.timeline
+      ?.instructions ||
+    data.threaded_conversation_with_injections_v2?.instructions ||
+    data.list?.tweets_timeline?.timeline?.instructions ||
+    null
+  );
+}
+
+/**
  * Extract timeline data and solve for it.
  * @param {object} timelineData The timeline data
  * @returns
  */
-function timelineExtractor(timelineData, grokSkip) {
-  grokSkip = grokSkip || false;
-  var instructions = null;
-  if (timelineData.data.user) {
-    if (timelineData.data.user.result.timeline_v2) {
-      // user timeline ("V2")
-      instructions =
-        timelineData.data.user.result.timeline_v2.timeline.instructions;
-    } else if (timelineData.data.user.result.timeline) {
-      // user timeline ("V2.5?")
-      instructions =
-        timelineData.data.user.result.timeline.timeline.instructions;
-    } else {
-      // Anything else is logged.
-      uLogTimelineError("timelineData.data.user", timelineData.data.user);
-    }
-  } else if (timelineData.data.home) {
-    if (timelineData.data.home.home_timeline_urt) {
-      instructions = timelineData.data.home.home_timeline_urt.instructions;
-    } else {
-      // Anything else is logged.
-      uLogTimelineError("timelineData.data.home", timelineData.data.home);
-    }
-  } else if (timelineData.data.search_by_raw_query) {
-    if (timelineData.data.search_by_raw_query.search_timeline) {
-      if (isEmpty(timelineData.data.search_by_raw_query.search_timeline)) {
-        uLogTimelineError(
-          "timelineData.data.search_by_raw_query",
-          timelineData.data.search_by_raw_query,
-        );
-        return (timelineData, []);
-      }
-      // For search
-      instructions =
-        timelineData.data.search_by_raw_query.search_timeline.timeline
-          .instructions;
-    } else {
-      // Anything else is logged.
-      uLogTimelineError(
-        "timelineData.data.search_by_raw_query",
-        timelineData.data.search_by_raw_query,
-      );
-    }
-  } else if (timelineData.data.communityResults) {
-    if (timelineData.data.communityResults.result.ranked_community_timeline) {
-      instructions =
-        timelineData.data.communityResults.result.ranked_community_timeline
-          .timeline.instructions;
-    } else {
-      ulog(
-        "Skipping Non-Ranked:",
-        Object.keys(timelineData.data.communityResults.result),
-      );
-      // skip non-ranked community timelines
-      return (timelineData, []);
-    }
-  } else if (timelineData.data.threaded_conversation_with_injections_v2) {
-    instructions =
-      timelineData.data.threaded_conversation_with_injections_v2.instructions;
-  }
+function timelineExtractor(timelineData, grokSkip = false) {
+  const instructions = getTimelineInstructions(timelineData);
+
   if (!instructions) {
-    ulog("Cannot find instructions", timelineData);
-    return (timelineData, []);
+    // Edge case: Empty search timeline
+    if (
+      timelineData?.data?.search_by_raw_query?.search_timeline &&
+      isEmpty(timelineData.data.search_by_raw_query.search_timeline)
+    ) {
+      return;
+    }
+    ulog("Cannot find instructions for timeline", timelineData);
+    return;
   }
   // Reconstruct timeline instructions to remove promotions.
 
@@ -1108,7 +1043,6 @@ function timelineExtractor(timelineData, grokSkip) {
       (instruction.entries[0].entryId.startsWith("profile-grid-") ||
         instruction.entries[0].entryId.startsWith("search-grid-"))
     ) {
-      // ulog("Adding Media Grid Entries...")
       pushTweetsBundle(instruction.entries[0].content.items);
       hasPushedTweets = true;
     } else if (
@@ -1116,12 +1050,9 @@ function timelineExtractor(timelineData, grokSkip) {
       (instruction.moduleEntryId.startsWith("profile-grid-") ||
         instruction.moduleEntryId.startsWith("search-grid-"))
     ) {
-      // ulog("Adding Media Grid Update Entries...")
       pushTweetsBundle(instruction.moduleItems);
       hasPushedTweets = true;
     } else if (instruction.type == "TimelineAddEntries") {
-      // ulog("Adding Common timeline entries...")
-      // ulog(instruction.entries)
       if (
         instruction.entries.length > 0 &&
         instruction.entries.length <= 2 &&
@@ -1302,46 +1233,25 @@ function smuggleTweetResults(tweet_result) {
  * @returns null if not a tweet, else the tweet object
  */
 function getRealTweetObject(entryItem) {
-  // ulog(entryItem)
-  if (entryItem.entryId) {
-    if (
-      entryItem.entryId.startsWith("tweet-") ||
-      entryItem.entryId.startsWith("profile-grid-") ||
-      entryItem.entryId.startsWith("search-grid-")
-    ) {
-      var baseentry = null;
-      if (entryItem.item) {
-        baseentry = entryItem.item;
-      } else if (entryItem.content) baseentry = entryItem.content;
-      if (!baseentry.itemContent.tweet_results.result) {
-        ulog("tweet_results.result is null?", baseentry.itemContent);
-        return null;
-      }
-      return smuggleTweetResults(baseentry.itemContent.tweet_results);
-    } else if (entryItem.entryId.includes("-tweet-")) {
-      if (entryItem.item.itemContent)
-        if (!entryItem.item.itemContent.tweet_results) {
-          ulog("entryItem.item.itemContent.tweet_results is null?", entryItem);
-          return null;
-        }
-      if (
-        !entryItem.item.itemContent.tweet_results ||
-        !entryItem.item.itemContent.tweet_results.result
-      ) {
-        ulog(
-          "entryItem.item.itemContent.tweet_results.result is null?",
-          entryItem,
-        );
-        return null;
-      }
-      return smuggleTweetResults(entryItem.item.itemContent.tweet_results);
-    }
-  } else if (
-    entryItem.result &&
-    entryItem.result.__typename.startsWith("Tweet")
+  const entryId = entryItem?.entryId || "";
+
+  if (
+    entryId.startsWith("tweet-") ||
+    entryId.startsWith("profile-grid-") ||
+    entryId.startsWith("search-grid-")
   ) {
+    const baseEntry = entryItem.item || entryItem.content;
+    return smuggleTweetResults(baseEntry?.itemContent?.tweet_results);
+  }
+
+  if (entryId.includes("-tweet-")) {
+    return smuggleTweetResults(entryItem.item?.itemContent?.tweet_results);
+  }
+
+  if (entryItem.result?.__typename?.startsWith("Tweet")) {
     return smuggleTweetResults(entryItem);
   }
+
   return null;
 }
 
@@ -1357,6 +1267,8 @@ function flattenTweetDetail(instructionEntries) {
       (entry.entryId.startsWith("conversationthread-") &&
         !entry.entryId.includes("-tweet-")) ||
       (entry.entryId.startsWith("home-conversation-") &&
+        !entry.entryId.includes("-tweet-")) ||
+      (entry.entryId.startsWith("list-conversation-") &&
         !entry.entryId.includes("-tweet-")) ||
       (entry.entryId.startsWith("profile-conversation-") &&
         !entry.entryId.includes("-tweet-")) ||
@@ -1378,97 +1290,118 @@ function flattenTweetDetail(instructionEntries) {
   return tweets;
 }
 
+/**
+ *
+ * @param {object} coreResult userCoreResult
+ * @returns object
+ */
 function solveUserObject(coreResult) {
-  if (!coreResult) return {};
-  if (!coreResult.legacy) {
+  if (!coreResult?.legacy) {
     ulog("failed to find legacyData in ", coreResult);
     return {};
   }
-  var fullbioText = coreResult.legacy.description;
-  if (coreResult?.legacy?.entities?.description?.urls) {
-    coreResult.legacy.entities.description.urls.forEach((url) => {
-      fullbioText = fullbioText.replace(url.url, url.expanded_url);
-    });
-  }
-  // So I don't have to type out .legacy lol.
-  const legacyData = coreResult.legacy;
-  const coreData = coreResult.core;
 
-  // CAA Twitter (~27/05). Someone decided that it's a good idea to push some changes on a monday.
-  var handle, display_name, location, locked, legacyVerify, parsedOK;
-  created = null;
-  //New splitted core data
-  if (coreData) {
-    handle = coreData.screen_name;
-    display_name = coreData.name;
-    location = coreResult.location.location;
-    locked = coreResult.privacy.protected ? true : false;
-    legacyVerify = coreResult.verification.verified ? true : false;
-    created = Date.parse(coreData.created_at).toFixed(0) / 1000;
-    parsedOK = true;
-  }
-  // try legacy method.
-  else if (legacyData.screen_name) {
-    handle = legacyData.screen_name;
-    display_name = legacyData.name;
-    location = legacyData.location;
-    locked = legacyData.protected ? true : false;
-    legacyVerify = legacyData.verified ? true : false;
-    created = Date.parse(legacyData.created_at).toFixed(0) / 1000;
-    parsedOK = true;
-  } else {
-    ulog("Failed to find correct screenData!", coreResult);
-  }
+  const legacy = coreResult.legacy;
+  const core = coreResult.core;
 
-  // User Object. See ArchivingNotes.md for details
-  const userObject = coreResult
-    ? {
-        // rest_id for when needing to skip searching for IDs
-        id: coreResult.rest_id,
-        // display Name for the user.
-        display_name: display_name,
-        handle: handle,
-        location: location,
-        created: created,
-        bio: fullbioText,
-        // locked accounts are listed as protected.
-        locked: locked,
-        // XXX: To find out what's the difference between graduated and non-graduated access.
-        graduation: coreResult.has_graduated_access ? true : false,
-        // Blue Status:
-        // has: Has blue checkmark
-        // legacy: Was/Still is a verified account (i.e. before the whole blue thing from elon.)
-        // hidden: The blue checkmark is hidden by the user.
-        blue: {
-          has: coreResult.is_blue_verified ? true : false,
-          legacy: legacyVerify,
-          // has hidden blue.
-          hidden: coreResult.has_hidden_subscriptions_on_profile ? true : false,
-        },
-        // Counts for the user
-        counts: {
-          posts: legacyData.statuses_count ? legacyData.statuses_count : -1,
-          likes: legacyData.favourites_count ? legacyData.favourites_count : -1,
-          media: legacyData.media_count ? legacyData.media_count : -1,
-          follows: {
-            fast: legacyData.fast_followers_count
-              ? legacyData.fast_followers_count
-              : 0,
-            slow: legacyData.normal_followers_count
-              ? legacyData.normal_followers_count
-              : -1,
-            friends: legacyData.friends_count ? legacyData.friends_count : -1,
-          },
-        },
-      }
-    : {};
-  // Twitter changed their APIs again.
-  if (!parsedOK) {
+  // Resolve text/urls
+  let fullBioText = legacy.description || "";
+  legacy.entities?.description?.urls?.forEach((url) => {
+    fullBioText = fullBioText.replace(url.url, url.expanded_url);
+  });
+
+  // Prefer core data, fallback to legacy
+  const handle = core?.screen_name || legacy.screen_name;
+  const display_name = core?.name || legacy.name;
+  const createdStr = core?.created_at || legacy.created_at;
+
+  if (!handle) {
     alert(
-      "[Tweeb.user.js] User object appears to be invalidated. Report this to\nhttps://github.com/Ristellise/Tweeb.user.js",
+      "[Tweeb.user.js] User object appears to be invalidated. Report this to GitHub.",
     );
   }
-  return userObject;
+
+  return {
+    id: coreResult.rest_id,
+    display_name: display_name,
+    handle: handle,
+    location: coreResult.location?.location || legacy.location,
+    created: createdStr ? Date.parse(createdStr) / 1000 : null,
+    bio: fullBioText,
+    locked: !!(coreResult.privacy?.protected || legacy.protected),
+    graduation: !!coreResult.has_graduated_access,
+    blue: {
+      has: !!coreResult.is_blue_verified,
+      legacy: !!(coreResult.verification?.verified || legacy.verified),
+      hidden: !!coreResult.has_hidden_subscriptions_on_profile,
+    },
+    counts: {
+      posts: legacy.statuses_count ?? -1,
+      likes: legacy.favourites_count ?? -1,
+      media: legacy.media_count ?? -1,
+      follows: {
+        fast: legacy.fast_followers_count ?? 0,
+        slow: legacy.normal_followers_count ?? -1,
+        friends: legacy.friends_count ?? -1,
+      },
+    },
+  };
+}
+
+function extractMediaInfo(extEntity) {
+  if (!extEntity?.media) return [];
+
+  return extEntity.media
+    .map((mediaItem) => {
+      if (mediaItem.type === "photo") {
+        const mediaFinal = {
+          type: mediaItem.type,
+          url: mediaItem.media_url_https + "?name=orig",
+          alt: mediaItem.ext_alt_text || null,
+          size: {
+            orig: [
+              mediaItem.original_info?.width,
+              mediaItem.original_info?.height,
+            ],
+            large: [
+              mediaItem.sizes?.large?.width,
+              mediaItem.sizes?.large?.height,
+            ],
+          },
+        };
+
+        if (mediaItem.features?.all?.tags) {
+          mediaFinal.tags = mediaItem.features.all.tags.map((tag) =>
+            tag.type === "user"
+              ? {
+                  id: tag.user_id,
+                  display_name: tag.name,
+                  handle: tag.screen_name,
+                  type: tag.type,
+                }
+              : tag,
+          );
+        }
+        return mediaFinal;
+      }
+
+      if (mediaItem.type === "video" || mediaItem.type === "animated_gif") {
+        const variants = mediaItem.video_info?.variants || [];
+        // Find variant with highest bitrate
+        const bestVariant = variants.reduce((prev, current) => {
+          return prev.bitrate > (current.bitrate || 0) ? prev : current;
+        }, variants[0]);
+
+        return {
+          type: "video",
+          url: bestVariant?.url,
+        };
+      }
+
+      ulog("Media type", mediaItem.type, "not known.", mediaItem);
+      return null;
+    })
+    .filter(Boolean); // removes nulls if unrecognized type
 }
 
 /**
@@ -1478,153 +1411,61 @@ function solveUserObject(coreResult) {
  */
 function solveTweet(tweetItem) {
   const tweetObject = getRealTweetObject(tweetItem);
+  if (!tweetObject) return null;
 
-  if (tweetObject == null) {
-    ulog("tweetObjectis Null", tweetObject, tweetItem);
-    return null;
-  }
-  // Tombstone tweets show up as this before being removed from the timeline entirely on a page refresh.
-  if (tweetObject.__typename && tweetObject.__typename.includes("Tombstone"))
-    return null;
-  var userCore = null;
-  if (!tweetObject.core) ulog("Core result not found.", tweetObject, tweetItem);
-  // Can be temporal (A tweet being deleted before being marked as tombstone'd.)
-  if (tweetObject.core.user_results) {
-    userCore = tweetObject.core.user_results.result;
-  }
-  var tweetContent = tweetObject.legacy;
-  var simpleTweet = {};
-  if (!tweetContent && tweetObject) {
+  if (tweetObject.__typename?.includes("Tombstone")) return null;
+
+  const tweetContent = tweetObject.legacy;
+  if (!tweetContent) {
     ulog("Tweet is in an unknown state.", tweetObject, tweetItem);
     return null;
   }
+
+  // Recursively handle retweets
   if (tweetContent.retweeted_status_result) {
-    simpleTweet = solveTweet(tweetContent.retweeted_status_result);
-    if (simpleTweet == null) {
-      ulog("retweetedStatus Fail", tweetContent);
-    }
-  } else {
-    var fullText = null;
-
-    if (tweetObject.note_tweet && tweetObject.note_tweet.is_expandable) {
-      const noteResults = tweetObject.note_tweet.note_tweet_results.result;
-      ulog(noteResults);
-      fullText = noteResults.text;
-      if (noteResults.entity_set.urls.length > 0) {
-        noteResults.entity_set.urls.forEach((url) => {
-          fullText = fullText.replace(url.url, url.expanded_url);
-        });
-      }
-    } else {
-      fullText = tweetContent.full_text;
-      if (tweetContent.entities) {
-        if (tweetContent.entities.urls.length > 0) {
-          tweetContent.entities.urls.forEach((url) => {
-            fullText = fullText.replace(url.url, url.expanded_url);
-          });
-        }
-        if (
-          tweetContent.entities.media &&
-          tweetContent.entities.media.length > 0
-        ) {
-          tweetContent.entities.media.forEach((url) => {
-            fullText = fullText.replace(url.url, "");
-          });
-        }
-        // Trim whitespace
-        fullText = fullText.replace(/ +$/, "");
-      }
-    }
-
-    simpleTweet = {
-      id: tweetContent.id_str,
-      text: fullText,
-      user: solveUserObject(userCore),
-      media: [],
-      created: Date.parse(tweetContent.created_at).toFixed(0) / 1000,
-      counts: {
-        reply: tweetContent.reply_count,
-        like: tweetContent.favorite_count,
-        retweet: tweetContent.retweet_count,
-        quote: tweetContent.quote_count,
-        bookmarked: tweetContent.bookmark_count,
-      },
-      quote: null,
-      reply: null,
-    };
+    return solveTweet(tweetContent.retweeted_status_result) || null;
   }
 
-  if (tweetContent.quoted_status_result) {
-    // quotes might be partial
-    simpleTweet.quote = solveTweet(tweetContent.quoted_status_result);
-  }
-
-  if (tweetContent.in_reply_to_status_id_str) {
-    // replies might be partial
-    simpleTweet.reply = tweetContent.in_reply_to_status_id_str;
-  }
-
-  // tweetContent.
-  var extEntity = tweetContent.extended_entities;
-  if (extEntity && extEntity.media) {
-    var media = [];
-    extEntity.media.forEach((mediaItem) => {
-      if (mediaItem.type == "photo") {
-        var mediaFinal = {
-          type: mediaItem.type ? mediaItem.type : null,
-          url: mediaItem.media_url_https + "?name=orig",
-          alt: mediaItem.ext_alt_text ? mediaItem.ext_alt_text : null,
-          size: {
-            orig: [
-              mediaItem.original_info.width,
-              mediaItem.original_info.height,
-            ],
-            large: [mediaItem.sizes.large.width, mediaItem.sizes.large.height],
-          },
-        };
-        if (
-          mediaItem.features &&
-          mediaItem.features.all &&
-          mediaItem.features.all.tags
-        ) {
-          mediaFinal.tags = mediaItem.features.all.tags.map((tag) => {
-            return tag.type == "user"
-              ? {
-                  id: tag.user_id,
-                  display_name: tag.name,
-                  handle: tag.screen_name,
-                  type: tag.type,
-                }
-              : tag;
-          });
-        }
-        media.push(mediaFinal);
-      } else if (
-        mediaItem.type == "video" ||
-        mediaItem.type == "animated_gif"
-      ) {
-        var bitrate = 0;
-        var bestRate = -1;
-        const variants = mediaItem.video_info.variants;
-        for (let varIdx = 0; varIdx < variants.length; varIdx++) {
-          const variant = variants[varIdx];
-          if (variant.bitrate && variant.bitrate > bitrate) {
-            bestRate = varIdx;
-          }
-        }
-        if (bestRate == -1) {
-          bestRate = 0;
-        }
-        media.push({
-          type: "video",
-          url: variants[bestRate],
-        });
-      } else {
-        ulog("Media type", mediaItem.type, "not known.", mediaItem);
-      }
+  // Text Extraction
+  let fullText = "";
+  if (tweetObject.note_tweet?.is_expandable) {
+    const noteResults = tweetObject.note_tweet.note_tweet_results.result;
+    fullText = noteResults.text;
+    noteResults.entity_set?.urls?.forEach((url) => {
+      fullText = fullText.replace(url.url, url.expanded_url);
     });
-    simpleTweet.media = media;
+  } else {
+    fullText = tweetContent.full_text || "";
+    tweetContent.entities?.urls?.forEach((url) => {
+      fullText = fullText.replace(url.url, url.expanded_url);
+    });
+    tweetContent.entities?.media?.forEach((media) => {
+      fullText = fullText.replace(media.url, "");
+    });
+    fullText = fullText.trim();
   }
+
+  // Construct standard output
+  const simpleTweet = {
+    id: tweetContent.id_str,
+    text: fullText,
+    user: solveUserObject(tweetObject.core?.user_results?.result),
+    media: extractMediaInfo(tweetContent.extended_entities),
+    created: tweetContent.created_at
+      ? Date.parse(tweetContent.created_at) / 1000
+      : null,
+    counts: {
+      reply: tweetContent.reply_count,
+      like: tweetContent.favorite_count,
+      retweet: tweetContent.retweet_count,
+      quote: tweetContent.quote_count,
+      bookmarked: tweetContent.bookmark_count,
+    },
+    quote: tweetContent.quoted_status_result
+      ? solveTweet(tweetContent.quoted_status_result)
+      : null,
+    reply: tweetContent.in_reply_to_status_id_str || null,
+  };
 
   if (tweetObject.post_image_description) {
     simpleTweet.media_image_description = tweetObject.post_image_description;
@@ -1649,21 +1490,24 @@ function extractTweetData(entries) {
   return allTweetsWithMedia;
 }
 
-/*
-  Xhook: Via regular twitter.
-*/
-
-function xhook_hook(request, response) {
-  const u = new URL(request.url);
-  if (
-    request.url &&
+function isParsable(u) {
+  return (
     u.pathname.includes("/graphql/") &&
     (u.pathname.endsWith("TweetDetail") ||
       u.pathname.endsWith("UserMedia") ||
       u.pathname.endsWith("Timeline") ||
       u.pathname.endsWith("UserTweets") ||
       u.pathname.endsWith("UserTweetsAndReplies"))
-  ) {
+  );
+}
+
+/*
+  Xhook: Via regular twitter.
+*/
+
+function xhook_hook(request, response) {
+  const u = new URL(request.url);
+  if (request.url && isParsable(u)) {
     // ulog(u,"Captured")
     if (response.status == 429) {
       alert(
@@ -1781,6 +1625,8 @@ function hook_regular_twitter() {
       (u.pathname.endsWith("client_event.json") ||
         u.pathname.endsWith("error_log.json") ||
         u.pathname.endsWith("/update_subscriptions") ||
+        u.pathname.includes("/measurement/") ||
+        u.pathname.includes("/live_pipeline/events") ||
         u.pathname.endsWith("user_flow.json") ||
         u.pathname.endsWith("ces/p2") ||
         // Creepy...
@@ -1792,17 +1638,7 @@ function hook_regular_twitter() {
       (u.hostname == "pbs.twimg.com" || u.hostname == "video.twimg.com")
     )
       return new Response();
-    else if (
-      request.url &&
-      u.pathname.includes("/graphql/") &&
-      (u.pathname.endsWith("HomeLatestTimeline") ||
-        u.pathname.endsWith("HomeTimeline") ||
-        u.pathname.endsWith("UserTweets") ||
-        u.pathname.endsWith("UserTweetsAndReplies") ||
-        u.pathname.endsWith("SearchTimeline") ||
-        u.pathname.endsWith("UserMedia") ||
-        u.pathname.endsWith("TweetDetail"))
-    ) {
+    else if (request.url && isParsable(u)) {
       ulog("Modify Params...");
       var vars = JSON.parse(decodeURI(u.searchParams.get("variables")));
       if (vars && "count" in vars && vars["count"] <= 20) {
