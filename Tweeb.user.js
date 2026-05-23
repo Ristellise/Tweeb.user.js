@@ -963,14 +963,15 @@ function getTimelineInstructions(timelineData) {
 
   // A clean waterfall of possible instruction paths using optional chaining
   return (
+    data.communityResults?.result?.community_media_timeline?.timeline?.instructions ||
+    data.communityResults?.result?.ranked_community_timeline?.timeline?.instructions ||
+    data.home?.home_timeline_urt?.instructions ||
+    data.list?.tweets_timeline?.timeline?.instructions ||
+    data.search_by_raw_query?.search_timeline?.timeline?.instructions ||
+    data.threaded_conversation_with_injections_v2?.instructions ||
     data.user?.result?.timeline_v2?.timeline?.instructions ||
     data.user?.result?.timeline?.timeline?.instructions ||
-    data.home?.home_timeline_urt?.instructions ||
-    data.search_by_raw_query?.search_timeline?.timeline?.instructions ||
-    data.communityResults?.result?.ranked_community_timeline?.timeline
-      ?.instructions ||
-    data.threaded_conversation_with_injections_v2?.instructions ||
-    data.list?.tweets_timeline?.timeline?.instructions ||
+    data.viewer?.explore_communities_timeline?.timeline?.instructions ||
     null
   );
 }
@@ -1037,38 +1038,51 @@ function timelineExtractor(timelineData, grokSkip = false) {
   var hasPushedTweets = false;
 
   newInstructions.forEach((instruction) => {
-    if (
-      instruction.type == "TimelineAddEntries" &&
-      instruction.entries.length >= 1 &&
-      (instruction.entries[0].entryId.startsWith("profile-grid-") ||
-        instruction.entries[0].entryId.startsWith("search-grid-"))
-    ) {
-      pushTweetsBundle(instruction.entries[0].content.items);
-      hasPushedTweets = true;
-    } else if (
-      instruction.type == "TimelineAddToModule" &&
-      (instruction.moduleEntryId.startsWith("profile-grid-") ||
-        instruction.moduleEntryId.startsWith("search-grid-"))
-    ) {
-      pushTweetsBundle(instruction.moduleItems);
-      hasPushedTweets = true;
-    } else if (instruction.type == "TimelineAddEntries") {
+    // 1. Destructure for cleaner variable names
+    const { type, entries, moduleEntryId, moduleItems } = instruction;
+
+    // 2. Handle AddToModule
+    if (type === "TimelineAddToModule") {
+      if (moduleEntryId?.split("-")[1] === "grid") {
+        pushTweetsBundle(moduleItems);
+        hasPushedTweets = true;
+      }
+      return; // Stop processing this specific instruction
+    }
+
+    // 3. Handle AddEntries
+    if (type === "TimelineAddEntries") {
+      // Ignore if no entries
+      if (!entries || entries.length === 0) return;
+
+      const firstId = entries[0]?.entryId || "";
+
+      // A: Profile or Search Grids
       if (
-        instruction.entries.length > 0 &&
-        instruction.entries.length <= 2 &&
-        instruction.entries[0].entryId.startsWith("cursor-") &&
-        instruction.entries[1].entryId.startsWith("cursor-")
+        firstId.startsWith("profile-grid-") ||
+        firstId.startsWith("search-grid-")
       ) {
+        pushTweetsBundle(entries[0].content.items);
+        hasPushedTweets = true;
+        return;
+      }
+
+      // B: Blank Cursors (checks if ALL items are cursors, max 2)
+      const isOnlyCursors =
+        entries.length <= 2 &&
+        entries.every((e) => e.entryId?.startsWith("cursor-"));
+
+      if (isOnlyCursors) {
         if (!hasPushedTweets) {
           ulog("Found blank cursor");
           tweebGlobalAdded = 0;
         }
-        // do nothing for blank cursors
-      } else if (instruction.entries.length == 0) {
-      } else {
-        pushTweetsBundle(instruction.entries);
-        hasPushedTweets = true;
+        return; // Do nothing for blank cursors
       }
+
+      // C: Default behavior (Push the entries)
+      pushTweetsBundle(entries);
+      hasPushedTweets = true;
     }
   });
 }
@@ -1633,7 +1647,8 @@ function hook_regular_twitter() {
     else if (request.url && isParsable(u)) {
       ulog("Modify Params...");
       var vars = JSON.parse(decodeURI(u.searchParams.get("variables")));
-      if (vars && "count" in vars && vars["count"] <= 20) {
+      
+      if (vars && "count" in vars && vars["count"] < 20) {
         vars["count"] = 20;
       }
       if (vars && "includePromotedContent" in vars) {
