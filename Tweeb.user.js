@@ -963,8 +963,10 @@ function getTimelineInstructions(timelineData) {
 
   // A clean waterfall of possible instruction paths using optional chaining
   return (
-    data.communityResults?.result?.community_media_timeline?.timeline?.instructions ||
-    data.communityResults?.result?.ranked_community_timeline?.timeline?.instructions ||
+    data.communityResults?.result?.community_media_timeline?.timeline
+      ?.instructions ||
+    data.communityResults?.result?.ranked_community_timeline?.timeline
+      ?.instructions ||
     data.home?.home_timeline_urt?.instructions ||
     data.list?.tweets_timeline?.timeline?.instructions ||
     data.search_by_raw_query?.search_timeline?.timeline?.instructions ||
@@ -1297,7 +1299,7 @@ function flattenTweetDetail(instructionEntries) {
 }
 
 /**
- *
+ * Solves a user object from Twitter/X GraphQL responses.
  * @param {object} coreResult userCoreResult
  * @returns object
  */
@@ -1310,11 +1312,17 @@ function solveUserObject(coreResult) {
   const legacy = coreResult.legacy;
   const core = coreResult.core;
 
-  // Resolve text/urls
+  // --- Bio & URL Resolution ---
   let fullBioText = legacy.description || "";
   legacy.entities?.description?.urls?.forEach((url) => {
     fullBioText = fullBioText.replace(url.url, url.expanded_url);
   });
+
+  // Main Profile Website Link (Resolving the t.co shortlink)
+  let websiteUrl = legacy.url || null;
+  if (legacy.entities?.url?.urls?.length > 0) {
+    websiteUrl = legacy.entities.url.urls[0].expanded_url || websiteUrl;
+  }
 
   // Prefer core data, fallback to legacy
   const handle = core?.screen_name || legacy.screen_name;
@@ -1327,28 +1335,56 @@ function solveUserObject(coreResult) {
     );
   }
 
+  // --- Image Handling ---
+  // Twitter serves avatars with "_normal" (48x48). We can strip it to get the original high-res image.
+  let avatarUrl =
+    coreResult.avatar?.image_url || legacy.profile_image_url_https || null;
+  let avatarHighRes = avatarUrl ? avatarUrl.replace("_normal", "") : null;
+
+  // --- Professional Data Extraction ---
+  let professionalCategory = null;
+  let professionalType = null;
+  if (coreResult.professional) {
+    professionalType = coreResult.professional.professional_type;
+    const catArray = coreResult.professional.category;
+    if (catArray && catArray.length > 0) {
+      professionalCategory = catArray[0].name; // e.g., "Media & News Company"
+    }
+  }
+
   return {
     id: coreResult.rest_id,
     display_name: display_name,
     handle: handle,
-    location: coreResult.location?.location || legacy.location,
+    location: coreResult.location?.location || legacy.location || null,
     created: createdStr ? Date.parse(createdStr) / 1000 : null,
     bio: fullBioText,
+    website: websiteUrl,
+    avatar: avatarHighRes || avatarUrl,
+    banner: legacy.profile_banner_url || null,
+    professional_type: professionalType,
+    professional_category: professionalCategory,
+    pinned: legacy.pinned_tweet_ids_str || [],
+
     locked: !!(coreResult.privacy?.protected || legacy.protected),
     graduation: !!coreResult.has_graduated_access,
+
     blue: {
       has: !!coreResult.is_blue_verified,
       legacy: !!(coreResult.verification?.verified || legacy.verified),
       hidden: !!coreResult.has_hidden_subscriptions_on_profile,
     },
+
     counts: {
+      followers: legacy.followers_count ?? -1, // NEW: The combined display number
       posts: legacy.statuses_count ?? -1,
       likes: legacy.favourites_count ?? -1,
       media: legacy.media_count ?? -1,
+      listed: legacy.listed_count ?? 0, // NEW: How many lists they are on
       follows: {
         fast: legacy.fast_followers_count ?? 0,
         slow: legacy.normal_followers_count ?? -1,
-        friends: legacy.friends_count ?? -1,
+        friends: legacy.friends_count ?? -1, // "Friends" is Twitter's internal name for "Following"
       },
     },
   };
@@ -1416,30 +1452,53 @@ function extractMediaInfo(extEntity) {
  * @returns null if no tweetObject is found, a object if a simplified tweet object can be constructed
  */
 function solveTweet(tweetItem) {
-  const tweetObject = getRealTweetObject(tweetItem);
+  let tweetObject = getRealTweetObject(tweetItem);
   if (!tweetObject) return null;
+
+  if (tweetObject.tweet) {
+    tweetObject = tweetObject.tweet;
+  }
 
   if (tweetObject.__typename?.includes("Tombstone")) return null;
 
   const tweetContent = tweetObject.legacy;
+
   if (!tweetContent) {
-    ulog("Tweet is in an unknown state.", tweetObject, tweetItem);
+    if (tweetObject.rest_id) {
+      return {
+        id: tweetObject.rest_id,
+        text: "[Tweet/Quote Unavailable or Restricted]",
+        missing: true,
+      };
+    }
     return null;
   }
 
-  // Recursively handle retweets
-  if (tweetContent.retweeted_status_result) {
-    return solveTweet(tweetContent.retweeted_status_result) || null;
+  if (
+    tweetContent.retweeted_status_result ||
+    tweetObject.retweeted_status_result
+  ) {
+    const rtNode =
+      tweetObject.retweeted_status_result ||
+      tweetContent.retweeted_status_result;
+    return solveTweet(rtNode) || null;
   }
 
-  // Text Extraction
+  // --- Text & Entity Extraction ---
   let fullText = "";
-  if (tweetObject.note_tweet?.is_expandable) {
+  let rawHashtags = [];
+  let rawMentions = [];
+
+  if (tweetObject.note_tweet?.note_tweet_results?.result) {
     const noteResults = tweetObject.note_tweet.note_tweet_results.result;
-    fullText = noteResults.text;
+    fullText = noteResults.text || "";
+
+    // Note Tweets (Long form) have their own entity set
     noteResults.entity_set?.urls?.forEach((url) => {
       fullText = fullText.replace(url.url, url.expanded_url);
     });
+    rawHashtags = noteResults.entity_set?.hashtags || [];
+    rawMentions = noteResults.entity_set?.user_mentions || [];
   } else {
     fullText = tweetContent.full_text || "";
     tweetContent.entities?.urls?.forEach((url) => {
@@ -1448,29 +1507,87 @@ function solveTweet(tweetItem) {
     tweetContent.entities?.media?.forEach((media) => {
       fullText = fullText.replace(media.url, "");
     });
-    fullText = fullText.trim();
+
+    rawHashtags = tweetContent.entities?.hashtags || [];
+    rawMentions = tweetContent.entities?.user_mentions || [];
+  }
+  fullText = fullText.trim();
+
+  // Clean up hashtags and mentions into simple arrays
+  const hashtags = rawHashtags.map((h) => h.text);
+  const mentions = rawMentions.map((m) => ({
+    id: m.id_str,
+    handle: m.screen_name,
+    name: m.name,
+  }));
+
+  // --- Quote Extraction ---
+  let solvedQuote = null;
+  const rawQuote =
+    tweetObject.quoted_status_result ||
+    tweetContent.quoted_status_result ||
+    tweetObject.quotedRefResult;
+  if (rawQuote) solvedQuote = solveTweet(rawQuote);
+
+  if (!solvedQuote && tweetContent.quoted_status_id_str) {
+    solvedQuote = {
+      id: tweetContent.quoted_status_id_str,
+      text: "[Quote Unavailable]",
+      missing: true,
+    };
   }
 
-  // Construct standard output
+  // --- Views ---
+  let viewCount = 0;
+  if (tweetObject.views && tweetObject.views.count) {
+    viewCount = parseInt(tweetObject.views.count, 10);
+  }
+
+  // --- Source Tag Cleaner (Turns "<a href...>Twitter for Android</a>" into "Twitter for Android") ---
+  let sourceApp = tweetObject.source || tweetContent.source || "";
+  const sourceMatch = sourceApp.match(/>([^<]+)</);
+  if (sourceMatch) sourceApp = sourceMatch[1];
+
+  // --- Construct Standard Output ---
   const simpleTweet = {
-    id: tweetContent.id_str,
+    id: tweetContent.id_str || tweetObject.rest_id,
+    conversation_id: tweetContent.conversation_id_str || tweetContent.id_str, // Critical for threads
     text: fullText,
     user: solveUserObject(tweetObject.core?.user_results?.result),
     media: extractMediaInfo(tweetContent.extended_entities),
     created: tweetContent.created_at
       ? Date.parse(tweetContent.created_at) / 1000
       : null,
+
+    // New Public Metadata
+    lang: tweetContent.lang || "unknown",
+    source: sourceApp || "unknown",
+    sensitive: tweetContent.possibly_sensitive || false,
+    edited: tweetObject.edit_control?.edit_tweet_ids?.length > 1,
+
+    // Extracted Entities
+    hashtags: hashtags,
+    mentions: mentions,
+
     counts: {
-      reply: tweetContent.reply_count,
-      like: tweetContent.favorite_count,
-      retweet: tweetContent.retweet_count,
-      quote: tweetContent.quote_count,
-      bookmarked: tweetContent.bookmark_count,
+      reply: tweetContent.reply_count || 0,
+      like: tweetContent.favorite_count || 0,
+      retweet: tweetContent.retweet_count || 0,
+      quote: tweetContent.quote_count || 0,
+      bookmarked: tweetContent.bookmark_count || 0,
+      views: viewCount,
     },
-    quote: tweetContent.quoted_status_result
-      ? solveTweet(tweetContent.quoted_status_result)
+
+    quote: solvedQuote,
+
+    // Enhanced Reply Info
+    reply: tweetContent.in_reply_to_status_id_str
+      ? {
+          to_tweet_id: tweetContent.in_reply_to_status_id_str,
+          to_user_id: tweetContent.in_reply_to_user_id_str,
+          to_handle: tweetContent.in_reply_to_screen_name,
+        }
       : null,
-    reply: tweetContent.in_reply_to_status_id_str || null,
   };
 
   if (tweetObject.post_image_description) {
@@ -1647,7 +1764,7 @@ function hook_regular_twitter() {
     else if (request.url && isParsable(u)) {
       ulog("Modify Params...");
       var vars = JSON.parse(decodeURI(u.searchParams.get("variables")));
-      
+
       if (vars && "count" in vars && vars["count"] < 20) {
         vars["count"] = 20;
       }
