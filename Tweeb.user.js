@@ -1,11 +1,12 @@
 // ==UserScript==
 // @name         Tweeb
 // @namespace    http://tampermonkey.net/
-// @version      26.05.13
+// @version      31.05.13
 // @description  Tweeb: Userscript for twitter
 // @author       Shinon
 // @match        https://twitter.com/*
 // @match        https://x.com/*
+// @match        https://pro.x.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=twitter.com
 // @require      https://cdnjs.cloudflare.com/ajax/libs/humanize-duration/3.32.1/humanize-duration.min.js
 // @updateURL    https://github.com/Ristellise/Tweeb.user.js/raw/refs/heads/main/Tweeb.user.js
@@ -1620,7 +1621,8 @@ function isParsable(u) {
       u.pathname.endsWith("UserMedia") ||
       u.pathname.endsWith("Timeline") ||
       u.pathname.endsWith("UserTweets") ||
-      u.pathname.endsWith("UserTweetsAndReplies"))
+      u.pathname.endsWith("ProfileFilter") ||
+      u.pathname.endsWith("AndReplies"))
   );
 }
 
@@ -1765,18 +1767,35 @@ function hook_regular_twitter() {
       ulog("Modify Params...");
       var vars = JSON.parse(decodeURI(u.searchParams.get("variables")));
 
-      if (vars && "count" in vars && vars["count"] < 20) {
+      if (vars && "count" in vars && vars["count"] <= 20) {
         vars["count"] = 20;
+        if (u.pathname.endsWith("UserMedia")) {
+          // Apparently count can be larger.
+          vars["count"] = 100;
+        }
       }
       if (vars && "includePromotedContent" in vars) {
         vars["includePromotedContent"] = false;
       }
 
+      if (vars && "controller_data" in vars) {
+        vars["controller_data"] = "";
+      }
+      if (vars && "referrer" in vars) {
+        vars["referrer"] = "";
+      }
       u.searchParams.set("variables", JSON.stringify(vars));
       // u.searchParams.set("features", JSON.stringify(features));
       request.url = u.toString();
     }
   });
+
+  const currentURL = new URL(document.URL);
+  if (currentURL.host.startsWith("pro.x")) {
+    setupSnackbar();
+    triggerSnackbar("pro.x.com does not support UI elements just yet.");
+    return;
+  }
 
   var XHookNavElement = null;
 
@@ -1785,8 +1804,6 @@ function hook_regular_twitter() {
 
   var XHookBtnElementcatcher = new MutationObserver(function (mutations) {
     for (const mutation of mutations) {
-      // ulog("Mutation updated");
-      // console.log(mutation);
       if (mutation.type != "childList") continue;
       if (mutation.target.querySelector(MORETARGET) && !XHookNavElement) {
         XHookNavElement = mutation.target;
