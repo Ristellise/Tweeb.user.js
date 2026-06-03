@@ -970,6 +970,7 @@ function getTimelineInstructions(timelineData) {
       ?.instructions ||
     data.home?.home_timeline_urt?.instructions ||
     data.list?.tweets_timeline?.timeline?.instructions ||
+    data.timeline?.timeline?.instructions ||
     data.search_by_raw_query?.search_timeline?.timeline?.instructions ||
     data.threaded_conversation_with_injections_v2?.instructions ||
     data.user?.result?.timeline_v2?.timeline?.instructions ||
