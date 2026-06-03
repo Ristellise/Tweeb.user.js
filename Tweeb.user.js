@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Tweeb
 // @namespace    http://tampermonkey.net/
-// @version      31.05.13
+// @version      26.06.03
 // @description  Tweeb: Userscript for twitter
 // @author       Shinon
 // @match        https://twitter.com/*
@@ -1620,6 +1620,7 @@ function isParsable(u) {
     (u.pathname.endsWith("TweetDetail") ||
       u.pathname.endsWith("UserMedia") ||
       u.pathname.endsWith("Timeline") ||
+      u.pathname.endsWith("TimelineById") ||
       u.pathname.endsWith("UserTweets") ||
       u.pathname.endsWith("ProfileFilter") ||
       u.pathname.endsWith("AndReplies"))
