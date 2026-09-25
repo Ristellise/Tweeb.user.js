@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Tweeb
 // @namespace    http://tampermonkey.net/
-// @version      26.06.03
+// @version      26.09.26
 // @description  Tweeb: Userscript for twitter
 // @author       Shinon
 // @match        https://twitter.com/*
@@ -16,7 +16,6 @@
 // @grant        GM_deleteValue
 // @grant        GM_listValues
 // @grant        GM_addElement
-// @sandbox JavaScript
 // @run-at document-start
 // ==/UserScript==
 
@@ -62,7 +61,7 @@ var xhook = (function () {
       const v = src[k];
       try {
         dst[k] = v;
-      } catch (error) {}
+      } catch (error) { }
     }
     return dst;
   };
@@ -280,7 +279,7 @@ var xhook = (function () {
         response.data = xhr.responseText;
         try {
           response.xml = xhr.responseXML;
-        } catch (error) {}
+        } catch (error) { }
         // unable to set responseXML due to response type, we attempt to assign responseXML
         // when the type is text even though it's against the spec due to several libraries
         // and browser vendors who allow this behavior. causing these requests to fail when
@@ -398,7 +397,7 @@ var xhook = (function () {
         if (xhr.readyState === 2) {
           readHead();
         }
-      } catch (error) {}
+      } catch (error) { }
       //pull response data
       if (xhr.readyState === 4) {
         transiting = false;
@@ -678,8 +677,8 @@ var xhook = (function () {
       return value instanceof P
         ? value
         : new P(function (resolve) {
-            resolve(value);
-          });
+          resolve(value);
+        });
     }
     return new (P || (P = Promise))(function (resolve, reject) {
       function fulfilled(value) {
@@ -1044,10 +1043,12 @@ function timelineExtractor(timelineData, grokSkip = false) {
   newInstructions.forEach((instruction) => {
     // 1. Destructure for cleaner variable names
     const { type, entries, moduleEntryId, moduleItems } = instruction;
+    ulog(type)
 
     // 2. Handle AddToModule
     if (type === "TimelineAddToModule") {
-      if (moduleEntryId?.split("-")[1] === "grid") {
+      if (moduleEntryId?.split("-").includes("grid")) {
+        ulog("grid entries")
         pushTweetsBundle(moduleItems);
         hasPushedTweets = true;
       }
@@ -1063,8 +1064,8 @@ function timelineExtractor(timelineData, grokSkip = false) {
 
       // A: Profile or Search Grids
       if (
-        firstId.startsWith("profile-grid-") ||
-        firstId.startsWith("search-grid-")
+        firstId.includes("grid") && (firstId.startsWith("profile-") ||
+        firstId.startsWith("search-"))
       ) {
         pushTweetsBundle(entries[0].content.items);
         hasPushedTweets = true;
@@ -1306,30 +1307,34 @@ function flattenTweetDetail(instructionEntries) {
  * @returns object
  */
 function solveUserObject(coreResult) {
-  if (!coreResult?.legacy) {
-    ulog("failed to find legacyData in ", coreResult);
-    return {};
-  }
-
-  const legacy = coreResult.legacy;
+  // finally they fully migrated legacy out as of 31/07/26
+  const legacy = coreResult.legacy || {};
   const core = coreResult.core;
 
   // --- Bio & URL Resolution ---
-  let fullBioText = legacy.description || "";
-  legacy.entities?.description?.urls?.forEach((url) => {
+  let fullBioText = legacy?.description || coreResult?.profile_bio?.description || "";
+  legacy?.entities?.description?.urls?.forEach((url) => {
+    fullBioText = fullBioText.replace(url.url, url.expanded_url);
+  });
+
+  coreResult?.profile_bio?.description?.entities?.description?.urls?.forEach((url) => {
     fullBioText = fullBioText.replace(url.url, url.expanded_url);
   });
 
   // Main Profile Website Link (Resolving the t.co shortlink)
-  let websiteUrl = legacy.url || null;
-  if (legacy.entities?.url?.urls?.length > 0) {
-    websiteUrl = legacy.entities.url.urls[0].expanded_url || websiteUrl;
+  let websiteUrl = legacy?.url || coreResult?.website?.url || null;
+  if (legacy?.entities?.url?.urls?.length > 0) {
+    websiteUrl = legacy?.entities.url.urls[0].expanded_url || websiteUrl;
+  }
+
+  if (coreResult?.profile_bio?.entities?.url?.urls?.length > 0) {
+    websiteUrl = coreResult?.profile_bio?.entities?.url?.urls[0].expanded_url || websiteUrl;
   }
 
   // Prefer core data, fallback to legacy
-  const handle = core?.screen_name || legacy.screen_name;
-  const display_name = core?.name || legacy.name;
-  const createdStr = core?.created_at || legacy.created_at;
+  const handle = core?.screen_name || legacy?.screen_name;
+  const display_name = core?.name || legacy?.name;
+  const createdStr = core?.created_at || legacy?.created_at;
 
   if (!handle) {
     alert(
@@ -1340,7 +1345,7 @@ function solveUserObject(coreResult) {
   // --- Image Handling ---
   // Twitter serves avatars with "_normal" (48x48). We can strip it to get the original high-res image.
   let avatarUrl =
-    coreResult.avatar?.image_url || legacy.profile_image_url_https || null;
+    coreResult.avatar?.image_url || legacy?.profile_image_url_https || null;
   let avatarHighRes = avatarUrl ? avatarUrl.replace("_normal", "") : null;
 
   // --- Professional Data Extraction ---
@@ -1358,35 +1363,35 @@ function solveUserObject(coreResult) {
     id: coreResult.rest_id,
     display_name: display_name,
     handle: handle,
-    location: coreResult.location?.location || legacy.location || null,
+    location: coreResult.location?.location || legacy?.location || null,
     created: createdStr ? Date.parse(createdStr) / 1000 : null,
     bio: fullBioText,
     website: websiteUrl,
     avatar: avatarHighRes || avatarUrl,
-    banner: legacy.profile_banner_url || null,
+    banner: coreResult?.banner?.image_url || legacy?.profile_banner_url || null,
     professional_type: professionalType,
     professional_category: professionalCategory,
-    pinned: legacy.pinned_tweet_ids_str || [],
+    pinned: coreResult?.pinned_items?.tweet_ids_str || legacy?.pinned_tweet_ids_str || [],
 
-    locked: !!(coreResult.privacy?.protected || legacy.protected),
+    locked: !!(coreResult.privacy?.protected || legacy?.protected),
     graduation: !!coreResult.has_graduated_access,
 
     blue: {
       has: !!coreResult.is_blue_verified,
-      legacy: !!(coreResult.verification?.verified || legacy.verified),
+      legacy: !!(coreResult.verification?.verified || legacy?.verified),
       hidden: !!coreResult.has_hidden_subscriptions_on_profile,
     },
 
     counts: {
-      followers: legacy.followers_count ?? -1, // NEW: The combined display number
-      posts: legacy.statuses_count ?? -1,
-      likes: legacy.favourites_count ?? -1,
-      media: legacy.media_count ?? -1,
-      listed: legacy.listed_count ?? 0, // NEW: How many lists they are on
+      followers: coreResult?.relationship_counts?.followers || legacy.followers_count || -1,
+      posts: coreResult?.tweet_counts?.tweets || legacy.statuses_count || -1,
+      likes: legacy?.favourites_count || -1,
+      media: coreResult?.tweet_counts?.media_tweets || legacy?.media_count || -1,
+      listed: legacy?.listed_count ?? 0, // Not supported / found in core result.
       follows: {
-        fast: legacy.fast_followers_count ?? 0,
-        slow: legacy.normal_followers_count ?? -1,
-        friends: legacy.friends_count ?? -1, // "Friends" is Twitter's internal name for "Following"
+        fast: legacy?.fast_followers_count ?? 0,
+        slow: legacy?.normal_followers_count ?? -1,
+        friends: coreResult?.relationship_counts?.following || legacy?.friends_count || -1, // "Friends" is Twitter's internal name for "Following"
       },
     },
   };
@@ -1418,11 +1423,11 @@ function extractMediaInfo(extEntity) {
           mediaFinal.tags = mediaItem.features.all.tags.map((tag) =>
             tag.type === "user"
               ? {
-                  id: tag.user_id,
-                  display_name: tag.name,
-                  handle: tag.screen_name,
-                  type: tag.type,
-                }
+                id: tag.user_id,
+                display_name: tag.name,
+                handle: tag.screen_name,
+                type: tag.type,
+              }
               : tag,
           );
         }
@@ -1528,6 +1533,7 @@ function solveTweet(tweetItem) {
   const rawQuote =
     tweetObject.quoted_status_result ||
     tweetContent.quoted_status_result ||
+    tweetObject.nested_quoted_tweet_results ||
     tweetObject.quotedRefResult;
   if (rawQuote) solvedQuote = solveTweet(rawQuote);
 
@@ -1549,13 +1555,13 @@ function solveTweet(tweetItem) {
   let sourceApp = tweetObject.source || tweetContent.source || "";
   const sourceMatch = sourceApp.match(/>([^<]+)</);
   if (sourceMatch) sourceApp = sourceMatch[1];
-
+  const solvedUser = solveUserObject(tweetObject.core?.user_results?.result)
   // --- Construct Standard Output ---
   const simpleTweet = {
     id: tweetContent.id_str || tweetObject.rest_id,
     conversation_id: tweetContent.conversation_id_str || tweetContent.id_str, // Critical for threads
     text: fullText,
-    user: solveUserObject(tweetObject.core?.user_results?.result),
+    user: solvedUser,
     media: extractMediaInfo(tweetContent.extended_entities),
     created: tweetContent.created_at
       ? Date.parse(tweetContent.created_at) / 1000
@@ -1585,10 +1591,10 @@ function solveTweet(tweetItem) {
     // Enhanced Reply Info
     reply: tweetContent.in_reply_to_status_id_str
       ? {
-          to_tweet_id: tweetContent.in_reply_to_status_id_str,
-          to_user_id: tweetContent.in_reply_to_user_id_str,
-          to_handle: tweetContent.in_reply_to_screen_name,
-        }
+        to_tweet_id: tweetContent.in_reply_to_status_id_str,
+        to_user_id: tweetContent.in_reply_to_user_id_str,
+        to_handle: tweetContent.in_reply_to_screen_name,
+      }
       : null,
   };
 
@@ -1632,7 +1638,7 @@ function isParsable(u) {
   Xhook: Via regular twitter.
 */
 
-function xhook_hook(request, response) {
+function xhook_after(request, response) {
   const u = new URL(request.url);
   if (request.url && isParsable(u)) {
     // ulog(u,"Captured")
@@ -1744,7 +1750,7 @@ const XHookBlock = `<a href="#none" id="tweebDL" aria-label="Download Media" rol
     </a>`;
 
 function hook_regular_twitter() {
-  xhook.after(xhook_hook);
+  xhook.after(xhook_after);
   xhook.before(function (request) {
     const u = new URL(request.url);
     if (
@@ -1766,29 +1772,52 @@ function hook_regular_twitter() {
     )
       return new Response();
     else if (request.url && isParsable(u)) {
-      ulog("Modify Params...");
-      var vars = JSON.parse(decodeURI(u.searchParams.get("variables")));
+      var bodyModKind = null;
+      var vars = {}
+      var container = null;
+      if (u.searchParams.get("variables")) {
+        bodyModKind = "searchParams";
+        ulog("[searchParams] Modify Params...");
+        var vars = JSON.parse(decodeURI(u.searchParams.get("variables")));
+      }
+      else if (request.body) {
+        bodyModKind = "body";
+        ulog("[searchParams] Modify body...");
+        container = JSON.parse(request.body);
+        var vars = container["variables"] || {};
+      }
+      if (bodyModKind !== null && vars) {
+        if (vars && "count" in vars && vars["count"] <= 20) {
+          vars["count"] = 20;
+          if (u.pathname.endsWith("UserMedia") || u.pathname.endsWith("UserPhotoTimeline") || u.pathname.endsWith("HomeTimeline") || u.pathname.endsWith("HomeLatestTimeline")) {
+            // Apparently count can be larger.
+            vars["count"] = 100;
+          }
+        }
+        if (vars && "includePromotedContent" in vars) {
+          vars["includePromotedContent"] = false;
+        }
 
-      if (vars && "count" in vars && vars["count"] <= 20) {
-        vars["count"] = 20;
-        if (u.pathname.endsWith("UserMedia")) {
-          // Apparently count can be larger.
-          vars["count"] = 100;
+        if (vars && "controller_data" in vars) {
+          vars["controller_data"] = "";
+        }
+        if (vars && "referrer" in vars) {
+          vars["referrer"] = "";
+        }
+
+        switch (bodyModKind) {
+          case "searchParams":
+            u.searchParams.set("variables", JSON.stringify(vars));
+            request.url = u.toString();
+            break;
+          case "body":
+            container.variables = vars
+            request.body = JSON.stringify(container)
+            break;
         }
       }
-      if (vars && "includePromotedContent" in vars) {
-        vars["includePromotedContent"] = false;
-      }
 
-      if (vars && "controller_data" in vars) {
-        vars["controller_data"] = "";
-      }
-      if (vars && "referrer" in vars) {
-        vars["referrer"] = "";
-      }
-      u.searchParams.set("variables", JSON.stringify(vars));
-      // u.searchParams.set("features", JSON.stringify(features));
-      request.url = u.toString();
+
     }
   });
 
